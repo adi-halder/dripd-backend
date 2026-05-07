@@ -4,10 +4,8 @@ from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 
-# Create app
 app = FastAPI(title="Drip'd API", version="1.0")
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,6 +32,7 @@ class Product(BaseModel):
     sizes: List[str]
     category: str
     available: bool = True
+    photo: Optional[str] = None  # Cloudinary URL
 
 class Order(BaseModel):
     customer_name: str
@@ -43,6 +42,17 @@ class Order(BaseModel):
     product_id: str
     size: str
     total_amount: int
+
+class AddProduct(BaseModel):
+    store_id: str
+    name: str
+    price: int
+    sizes: List[str]
+    category: str
+    photo: Optional[str] = None
+
+class UpdatePhoto(BaseModel):
+    photo: str
 
 # ============ DATABASE ============
 stores_db = [
@@ -84,6 +94,37 @@ def get_stores_by_category(category: str):
 def get_products(store_id: str):
     products = [p for p in products_db if p.store_id == store_id]
     return {"products": products}
+
+# NEW: Add product with photo from store dashboard
+@app.post("/products")
+def add_product(product: AddProduct):
+    new_product = Product(
+        id=f"p{len(products_db)+1}_{int(datetime.now().timestamp())}",
+        store_id=product.store_id,
+        name=product.name,
+        price=product.price,
+        sizes=product.sizes,
+        category=product.category,
+        photo=product.photo
+    )
+    products_db.append(new_product)
+    return {"success": True, "product": new_product}
+
+# NEW: Update photo for existing product
+@app.patch("/products/{product_id}/photo")
+def update_product_photo(product_id: str, body: UpdatePhoto):
+    product = next((p for p in products_db if p.id == product_id), None)
+    if not product:
+        return {"error": "Product not found"}
+    product.photo = body.photo
+    return {"success": True, "product": product}
+
+# NEW: Delete product
+@app.delete("/products/{product_id}")
+def delete_product(product_id: str):
+    global products_db
+    products_db = [p for p in products_db if p.id != product_id]
+    return {"success": True}
 
 @app.post("/orders")
 def place_order(order: Order):
