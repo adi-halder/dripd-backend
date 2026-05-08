@@ -3,6 +3,9 @@ from pydantic import BaseModel
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
+import httpx
+import base64
+import os
 
 app = FastAPI(title="Drip'd API", version="1.0")
 
@@ -12,6 +15,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============ RAZORPAY CONFIG ============
+RAZORPAY_KEY_ID = "rzp_test_Smd5WAS1quRuYv"
+RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_SECRET", "")
 
 # ============ DATA MODELS ============
 class Store(BaseModel):
@@ -32,7 +39,7 @@ class Product(BaseModel):
     sizes: List[str]
     category: str
     available: bool = True
-    photo: Optional[str] = None  # Cloudinary URL
+    photo: Optional[str] = None
 
 class Order(BaseModel):
     customer_name: str
@@ -42,6 +49,8 @@ class Order(BaseModel):
     product_id: str
     size: str
     total_amount: int
+    is_try_and_buy: bool = False
+    payment_id: Optional[str] = None
 
 class AddProduct(BaseModel):
     store_id: str
@@ -53,6 +62,10 @@ class AddProduct(BaseModel):
 
 class UpdatePhoto(BaseModel):
     photo: str
+
+class RefundRequest(BaseModel):
+    order_id: str
+    refund_type: str  # "keep" or "return"
 
 # ============ DATABASE ============
 stores_db = [
@@ -76,6 +89,29 @@ products_db = [
 
 orders_db = []
 
+# ============ RAZORPAY REFUND ============
+async def process_razorpay_refund(payment_id: str, amount: int, notes: str):
+    try:
+        credentials = base64.b64encode(
+            f"{RAZORPAY_KEY_ID}:{RAZORPAY_KEY_SECRET}".encode()
+        ).decode()
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"https://api.razorpay.com/v1/payments/{payment_id}/refund",
+                headers={
+                    "Authorization": f"Basic {credentials}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "amount": amount * 100,
+                    "notes": {"reason": notes}
+                }
+            )
+            data = response.json()
+            return {"success": True, "refund_id": data.get("id"), "amount": amount}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 # ============ ROUTES ============
 @app.get("/")
 def home():
@@ -95,7 +131,6 @@ def get_products(store_id: str):
     products = [p for p in products_db if p.store_id == store_id]
     return {"products": products}
 
-# NEW: Add product with photo from store dashboard
 @app.post("/products")
 def add_product(product: AddProduct):
     new_product = Product(
@@ -110,7 +145,6 @@ def add_product(product: AddProduct):
     products_db.append(new_product)
     return {"success": True, "product": new_product}
 
-# NEW: Update photo for existing product
 @app.patch("/products/{product_id}/photo")
 def update_product_photo(product_id: str, body: UpdatePhoto):
     product = next((p for p in products_db if p.id == product_id), None)
@@ -119,7 +153,6 @@ def update_product_photo(product_id: str, body: UpdatePhoto):
     product.photo = body.photo
     return {"success": True, "product": product}
 
-# NEW: Delete product
 @app.delete("/products/{product_id}")
 def delete_product(product_id: str):
     global products_db
@@ -139,14 +172,57 @@ def place_order(order: Order):
         "address": order.customer_address,
         "store": store.name,
         "product": product.name,
+        "product_price": product.price,
         "size": order.size,
         "amount": order.total_amount,
         "status": "confirmed",
+        "is_try_and_buy": order.is_try_and_buy,
+        "payment_id": order.payment_id,
+        "try_status": "pending" if order.is_try_and_buy else None,
         "estimated_delivery": store.delivery_time,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
     orders_db.append(new_order)
     return {"success": True, "order": new_order}
+
+@app.post("/orders/{order_id}/refund")
+async def process_refund(order_id: str, body: RefundRequest):
+    order = next((o for o in orders_db if o["order_id"] == order_id), None)
+    if not order:
+        return {"error": "Order not found"}
+    if not order.get("is_try_and_buy"):
+        return {"error": "Not a Try & Buy order"}
+    if not order.get("payment_id"):
+        return {"error": "No payment ID found"}
+
+    product_price = order.get("product_price", 0)
+    payment_id = order["payment_id"]
+
+    if body.refund_type == "keep":
+        # Customer keeps → refund ₹50 try fee
+        refund_amount = 50
+        notes = "Try & Buy fee refund — customer kept the item"
+        order["try_status"] = "kept"
+    elif body.refund_type == "return":
+        # Customer returns → refund full product price
+        refund_amount = product_price
+        notes = "Try & Buy return — product price refunded"
+        order["try_status"] = "returned"
+    else:
+        return {"error": "Invalid refund type"}
+
+    result = await process_razorpay_refund(payment_id, refund_amount, notes)
+
+    if result["success"]:
+        return {
+            "success": True,
+            "refund_type": body.refund_type,
+            "refund_amount": refund_amount,
+            "refund_id": result.get("refund_id"),
+            "message": f"₹{refund_amount} refund initiated!"
+        }
+    else:
+        return {"error": "Refund failed", "details": result.get("error")}
 
 @app.get("/orders")
 def get_orders():
