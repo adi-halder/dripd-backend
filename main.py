@@ -67,6 +67,10 @@ class RefundRequest(BaseModel):
     order_id: str
     refund_type: str  # "keep" or "return"
 
+class ReturnRequest(BaseModel):
+    order_id: str
+    reason: str  # "wrong_size", "damaged", "wrong_product", "other"
+
 # ============ DATABASE ============
 stores_db = [
     Store(id="s1", name="Klassic Boutique", area="Sector 29 Gurgaon",
@@ -179,12 +183,14 @@ def place_order(order: Order):
         "is_try_and_buy": order.is_try_and_buy,
         "payment_id": order.payment_id,
         "try_status": "pending" if order.is_try_and_buy else None,
+        "return_status": None,
         "estimated_delivery": store.delivery_time,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
     orders_db.append(new_order)
     return {"success": True, "order": new_order}
 
+# Try & Buy refund (keep or return)
 @app.post("/orders/{order_id}/refund")
 async def process_refund(order_id: str, body: RefundRequest):
     order = next((o for o in orders_db if o["order_id"] == order_id), None)
@@ -199,12 +205,10 @@ async def process_refund(order_id: str, body: RefundRequest):
     payment_id = order["payment_id"]
 
     if body.refund_type == "keep":
-        # Customer keeps → refund ₹50 try fee
         refund_amount = 50
         notes = "Try & Buy fee refund — customer kept the item"
         order["try_status"] = "kept"
     elif body.refund_type == "return":
-        # Customer returns → refund full product price
         refund_amount = product_price
         notes = "Try & Buy return — product price refunded"
         order["try_status"] = "returned"
@@ -220,6 +224,48 @@ async def process_refund(order_id: str, body: RefundRequest):
             "refund_amount": refund_amount,
             "refund_id": result.get("refund_id"),
             "message": f"₹{refund_amount} refund initiated!"
+        }
+    else:
+        return {"error": "Refund failed", "details": result.get("error")}
+
+# Normal order return (within 24 hours)
+@app.post("/orders/{order_id}/return")
+async def request_return(order_id: str, body: ReturnRequest):
+    order = next((o for o in orders_db if o["order_id"] == order_id), None)
+    if not order:
+        return {"error": "Order not found"}
+    if order.get("is_try_and_buy"):
+        return {"error": "Use Try & Buy return flow instead"}
+    if order.get("return_status"):
+        return {"error": "Return already requested"}
+    if not order.get("payment_id"):
+        return {"error": "No payment ID found"}
+
+    # Check 24 hour limit
+    order_time = datetime.strptime(order["timestamp"], "%Y-%m-%d %H:%M:%S")
+    hours_since_order = (datetime.now() - order_time).total_seconds() / 3600
+    if hours_since_order > 24:
+        return {"error": "Return window expired. Returns only accepted within 24 hours of delivery."}
+
+    product_price = order.get("product_price", 0)
+    payment_id = order["payment_id"]
+
+    result = await process_razorpay_refund(
+        payment_id,
+        product_price,
+        f"Normal return: {body.reason}"
+    )
+
+    if result["success"]:
+        order["return_status"] = "requested"
+        order["return_reason"] = body.reason
+        order["refund_id"] = result.get("refund_id")
+        return {
+            "success": True,
+            "refund_amount": product_price,
+            "refund_id": result.get("refund_id"),
+            "message": f"₹{product_price} refund initiated! Returns in 2-3 business days.",
+            "pickup_in": "30 minutes"
         }
     else:
         return {"error": "Refund failed", "details": result.get("error")}
