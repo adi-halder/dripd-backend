@@ -11,7 +11,7 @@ from psycopg2.extras import RealDictCursor
 import uuid
 import json
 
-app = FastAPI(title="Drip'd API", version="4.0")
+app = FastAPI(title="Drip'd API", version="5.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -24,7 +24,6 @@ app.add_middleware(
 RAZORPAY_KEY_ID = "rzp_test_Smd5WAS1quRuYv"
 RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_SECRET", "")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
 # ============ DATABASE ============
 def get_db():
@@ -107,6 +106,19 @@ class StoryCreate(BaseModel):
 class StoryView(BaseModel):
     story_id: str
     customer_phone: str
+
+class OrderStatusUpdate(BaseModel):
+    order_id: str
+    status: str
+    updated_by: str
+    updated_by_id: Optional[str] = None
+    note: Optional[str] = None
+
+class ChatMessage(BaseModel):
+    order_id: str
+    sender: str
+    sender_name: str
+    message: str
 
 # ============ RAZORPAY ============
 async def process_razorpay_refund(payment_id: str, amount: int, notes: str):
@@ -201,10 +213,27 @@ def update_social_proof_order(cur, product_id: str, store_id: str):
             updated_at = NOW()
     """, (product_id, store_id))
 
+# ============ INVOICE HELPER ============
+def create_invoice(cur, order: Order, order_id: str, store_name: str, product_name: str, product_price: int):
+    invoice_number = f"INV-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+    try_fee = 50 if order.is_try_and_buy else 0
+    cur.execute("""
+        INSERT INTO invoices (id, invoice_number, order_id, customer_name, customer_phone,
+            customer_address, store_name, store_id, product_name, product_price, size,
+            delivery_fee, platform_fee, try_and_buy_fee, total_amount, payment_id, is_try_and_buy)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (
+        f"INV{uuid.uuid4().hex[:8]}", invoice_number, order_id,
+        order.customer_name, order.customer_phone, order.customer_address,
+        store_name, order.store_id, product_name, product_price, order.size,
+        30, 5, try_fee, order.total_amount, order.payment_id, order.is_try_and_buy
+    ))
+    return invoice_number
+
 # ============ ROUTES ============
 @app.get("/")
 def home():
-    return {"app": "Drip'd", "version": "4.0", "message": "Fashion delivered in 60 minutes!"}
+    return {"app": "Drip'd", "version": "5.0", "message": "Fashion delivered in 60 minutes!"}
 
 # ============ STORE REGISTRATION ============
 @app.post("/stores/register")
@@ -389,15 +418,26 @@ def place_order(order: Order):
 
         order_id = f"DR{uuid.uuid4().hex[:6].upper()}"
         cur.execute("""
-            INSERT INTO orders (order_id, customer, phone, address, store_id, store, product_id, product, product_price, size, amount, status, is_try_and_buy, payment_id, try_status, return_status, is_rated, estimated_delivery)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (order_id, order.customer_name, order.customer_phone, order.customer_address,
-              order.store_id, store["name"], order.product_id, product["name"],
-              product["price"], order.size, order.total_amount, "confirmed",
-              order.is_try_and_buy, order.payment_id,
-              "pending" if order.is_try_and_buy else None,
-              None, False, store["delivery_time"]))
+            INSERT INTO orders (order_id, customer, phone, address, store_id, store, product_id, product,
+                product_price, size, amount, status, is_try_and_buy, payment_id, try_status,
+                return_status, is_rated, estimated_delivery, current_status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            order_id, order.customer_name, order.customer_phone, order.customer_address,
+            order.store_id, store["name"], order.product_id, product["name"],
+            product["price"], order.size, order.total_amount, "confirmed",
+            order.is_try_and_buy, order.payment_id,
+            "pending" if order.is_try_and_buy else None,
+            None, False, store["delivery_time"], "confirmed"
+        ))
 
+        # Initial status history
+        cur.execute("""
+            INSERT INTO order_status_history (id, order_id, status, updated_by, note)
+            VALUES (%s, %s, 'confirmed', 'system', 'Order placed successfully')
+        """, (f"SH{uuid.uuid4().hex[:8]}", order_id))
+
+        # Award coins
         coins_earned = 10
         if order.is_try_and_buy:
             coins_earned += 5
@@ -405,10 +445,12 @@ def place_order(order: Order):
         if delivery_free:
             redeem_coins(cur, order.customer_phone, 100, order_id)
 
+        # Trending & social proof
         city = store["area"]
         update_trending_score(cur, order.product_id, order.store_id, city, is_order=True)
         update_social_proof_order(cur, order.product_id, order.store_id)
 
+        # Style profile
         cur.execute("""
             INSERT INTO customer_style_profile (customer_phone, preferred_categories, preferred_brands)
             VALUES (%s, %s::jsonb, %s::jsonb)
@@ -430,16 +472,21 @@ def place_order(order: Order):
         """, (order.customer_phone, json.dumps([product["category"]]), json.dumps([store["name"]]),
               json.dumps([product["category"]]), json.dumps([store["name"]])))
 
+        # Size history
         cur.execute("""
             INSERT INTO size_history (id, customer_phone, product_id, order_id, category, size_ordered)
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (f"SH{uuid.uuid4().hex[:8]}", order.customer_phone, order.product_id,
               order_id, product["category"], order.size))
 
+        # Personalization
         cur.execute("""
             INSERT INTO personalization_feedback (id, customer_phone, product_id, action)
             VALUES (%s, %s, %s, 'ordered')
         """, (f"PF{uuid.uuid4().hex[:8]}", order.customer_phone, order.product_id))
+
+        # Create invoice
+        invoice_number = create_invoice(cur, order, order_id, store["name"], product["name"], product["price"])
 
         conn.commit()
         cur.execute("SELECT * FROM orders WHERE order_id = %s", (order_id,))
@@ -450,6 +497,7 @@ def place_order(order: Order):
             "order": dict(new_order),
             "coins_earned": coins_earned,
             "delivery_free": delivery_free,
+            "invoice_number": invoice_number,
             "message": f"🎉 You earned {coins_earned} Drip Coins!"
         }
     except Exception as e:
@@ -535,7 +583,7 @@ async def process_refund(order_id: str, body: RefundRequest):
     except Exception as e:
         return {"error": str(e)}
 
-# ============ RETURN (NORMAL ORDER) ============
+# ============ RETURN ============
 @app.post("/orders/{order_id}/return")
 async def request_return(order_id: str, body: ReturnRequest):
     try:
@@ -649,7 +697,6 @@ def rate_order(order_id: str, body: RatingRequest):
 # PHASE 2 ROUTES
 # ============================================
 
-# ---- DRIP COINS ----
 @app.get("/coins/{customer_phone}")
 def get_coins(customer_phone: str):
     try:
@@ -671,8 +718,7 @@ def get_coin_history(customer_phone: str):
         cur = conn.cursor()
         cur.execute("""
             SELECT * FROM coin_transactions
-            WHERE customer_phone = %s
-            ORDER BY created_at DESC LIMIT 50
+            WHERE customer_phone = %s ORDER BY created_at DESC LIMIT 50
         """, (customer_phone,))
         transactions = cur.fetchall()
         conn.close()
@@ -680,7 +726,6 @@ def get_coin_history(customer_phone: str):
     except Exception as e:
         return {"error": str(e)}
 
-# ---- TRENDING NOW ----
 @app.post("/products/view")
 def track_product_view(body: TrackView):
     try:
@@ -704,14 +749,12 @@ def get_trending(city: str, limit: int = 10):
         cur = conn.cursor()
         cur.execute("""
             SELECT ts.product_id, ts.store_id, ts.views_24h, ts.orders_24h, ts.trending_score,
-                   p.name, p.price, p.photo, p.category, p.rating, p.sizes,
-                   s.name as store_name
+                   p.name, p.price, p.photo, p.category, p.rating, p.sizes, s.name as store_name
             FROM trending_scores ts
             JOIN products p ON ts.product_id = p.id
             JOIN stores s ON ts.store_id = s.id
             WHERE ts.city = %s AND p.available = TRUE
-            ORDER BY ts.trending_score DESC
-            LIMIT %s
+            ORDER BY ts.trending_score DESC LIMIT %s
         """, (city, limit))
         trending = cur.fetchall()
         conn.close()
@@ -719,7 +762,6 @@ def get_trending(city: str, limit: int = 10):
     except Exception as e:
         return {"error": str(e)}
 
-# ---- DROP ALERTS ----
 @app.post("/alerts/subscribe")
 def subscribe_drop_alert(body: DropAlertSubscribe):
     try:
@@ -728,8 +770,7 @@ def subscribe_drop_alert(body: DropAlertSubscribe):
         cur.execute("""
             INSERT INTO drop_alert_subscriptions (id, customer_phone, store_id, category, city, is_active)
             VALUES (%s, %s, %s, %s, %s, TRUE)
-            ON CONFLICT (customer_phone, store_id, category, city)
-            DO UPDATE SET is_active = TRUE
+            ON CONFLICT (customer_phone, store_id, category, city) DO UPDATE SET is_active = TRUE
         """, (f"DA{uuid.uuid4().hex[:8]}", body.customer_phone, body.store_id, body.category, body.city))
         conn.commit()
         conn.close()
@@ -744,8 +785,7 @@ def unsubscribe_drop_alert(body: DropAlertSubscribe):
         cur = conn.cursor()
         cur.execute("""
             UPDATE drop_alert_subscriptions SET is_active = FALSE
-            WHERE customer_phone = %s AND city = %s
-            AND (store_id = %s OR store_id IS NULL)
+            WHERE customer_phone = %s AND city = %s AND (store_id = %s OR store_id IS NULL)
         """, (body.customer_phone, body.city, body.store_id))
         conn.commit()
         conn.close()
@@ -759,8 +799,7 @@ def get_notifications(customer_phone: str):
         conn = get_db()
         cur = conn.cursor()
         cur.execute("""
-            SELECT * FROM drop_notifications
-            WHERE customer_phone = %s
+            SELECT * FROM drop_notifications WHERE customer_phone = %s
             ORDER BY created_at DESC LIMIT 30
         """, (customer_phone,))
         notifications = cur.fetchall()
@@ -770,10 +809,7 @@ def get_notifications(customer_phone: str):
         """, (customer_phone,))
         unread = cur.fetchone()
         conn.close()
-        return {
-            "notifications": [dict(n) for n in notifications],
-            "unread_count": unread["unread"] if unread else 0
-        }
+        return {"notifications": [dict(n) for n in notifications], "unread_count": unread["unread"] if unread else 0}
     except Exception as e:
         return {"error": str(e)}
 
@@ -789,7 +825,6 @@ def mark_notifications_read(customer_phone: str):
     except Exception as e:
         return {"error": str(e)}
 
-# ---- AI PERSONALIZATION ----
 @app.get("/foryou/{customer_phone}")
 def get_for_you(customer_phone: str, city: str = "Gurgaon"):
     try:
@@ -799,8 +834,8 @@ def get_for_you(customer_phone: str, city: str = "Gurgaon"):
         profile = cur.fetchone()
         if not profile:
             cur.execute("""
-                SELECT p.*, s.name as store_name
-                FROM products p JOIN stores s ON p.store_id = s.id
+                SELECT p.*, s.name as store_name FROM products p
+                JOIN stores s ON p.store_id = s.id
                 WHERE p.available = TRUE ORDER BY p.rating DESC LIMIT 10
             """)
             products = cur.fetchall()
@@ -810,27 +845,21 @@ def get_for_you(customer_phone: str, city: str = "Gurgaon"):
         preferred_categories = profile["preferred_categories"] or []
         if preferred_categories:
             cur.execute("""
-                SELECT p.*, s.name as store_name
-                FROM products p JOIN stores s ON p.store_id = s.id
+                SELECT p.*, s.name as store_name FROM products p
+                JOIN stores s ON p.store_id = s.id
                 WHERE p.available = TRUE AND p.category = ANY(%s)
                 ORDER BY p.rating DESC LIMIT 15
             """, (preferred_categories,))
         else:
             cur.execute("""
-                SELECT p.*, s.name as store_name
-                FROM products p JOIN stores s ON p.store_id = s.id
+                SELECT p.*, s.name as store_name FROM products p
+                JOIN stores s ON p.store_id = s.id
                 WHERE p.available = TRUE ORDER BY p.rating DESC LIMIT 15
             """)
         products = cur.fetchall()
         conn.close()
-        return {
-            "products": [dict(p) for p in products],
-            "reason": "personalized",
-            "based_on": {
-                "categories": preferred_categories,
-                "brands": profile["preferred_brands"] or []
-            }
-        }
+        return {"products": [dict(p) for p in products], "reason": "personalized",
+                "based_on": {"categories": preferred_categories, "brands": profile["preferred_brands"] or []}}
     except Exception as e:
         return {"error": str(e)}
 
@@ -863,15 +892,13 @@ def get_style_profile(customer_phone: str):
     except Exception as e:
         return {"error": str(e)}
 
-# ---- SIZE PREDICTOR ----
 @app.get("/size/{customer_phone}/{category}")
 def predict_size(customer_phone: str, category: str):
     try:
         conn = get_db()
         cur = conn.cursor()
         cur.execute("""
-            SELECT size_ordered, fit_feedback, kept_item
-            FROM size_history
+            SELECT size_ordered, fit_feedback, kept_item FROM size_history
             WHERE customer_phone = %s AND category = %s
             ORDER BY created_at DESC LIMIT 10
         """, (customer_phone, category))
@@ -897,12 +924,8 @@ def predict_size(customer_phone: str, category: str):
         else:
             return {"prediction": None, "confidence": "none"}
 
-        return {
-            "prediction": predicted,
-            "confidence": confidence,
-            "based_on": len(history),
-            "message": f"Based on your last {len(history)} orders, we think you're a {predicted} in {category} 👌"
-        }
+        return {"prediction": predicted, "confidence": confidence, "based_on": len(history),
+                "message": f"Based on your last {len(history)} orders, we think you're a {predicted} in {category} 👌"}
     except Exception as e:
         return {"error": str(e)}
 
@@ -925,7 +948,6 @@ def get_size_history(customer_phone: str):
 # PHASE 3 ROUTES
 # ============================================
 
-# ---- STORE STORIES ----
 @app.post("/stories")
 def create_story(body: StoryCreate):
     try:
@@ -949,10 +971,8 @@ def get_all_stories():
         cur = conn.cursor()
         cur.execute("""
             SELECT ss.*, s.name as store_name, s.area as store_area
-            FROM store_stories ss
-            JOIN stores s ON ss.store_id = s.id
-            WHERE ss.expires_at > NOW()
-            ORDER BY ss.created_at DESC
+            FROM store_stories ss JOIN stores s ON ss.store_id = s.id
+            WHERE ss.expires_at > NOW() ORDER BY ss.created_at DESC
         """)
         stories = cur.fetchall()
         conn.close()
@@ -960,12 +980,8 @@ def get_all_stories():
         for story in stories:
             sid = story["store_id"]
             if sid not in grouped:
-                grouped[sid] = {
-                    "store_id": sid,
-                    "store_name": story["store_name"],
-                    "store_area": story["store_area"],
-                    "stories": []
-                }
+                grouped[sid] = {"store_id": sid, "store_name": story["store_name"],
+                                "store_area": story["store_area"], "stories": []}
             grouped[sid]["stories"].append(dict(story))
         return {"stores_with_stories": list(grouped.values())}
     except Exception as e:
@@ -977,8 +993,7 @@ def get_store_stories(store_id: str):
         conn = get_db()
         cur = conn.cursor()
         cur.execute("""
-            SELECT * FROM store_stories
-            WHERE store_id = %s AND expires_at > NOW()
+            SELECT * FROM store_stories WHERE store_id = %s AND expires_at > NOW()
             ORDER BY created_at DESC
         """, (store_id,))
         stories = cur.fetchall()
@@ -994,8 +1009,7 @@ def view_story(story_id: str, body: StoryView):
         cur = conn.cursor()
         cur.execute("""
             INSERT INTO story_views (id, story_id, customer_phone)
-            VALUES (%s, %s, %s)
-            ON CONFLICT (story_id, customer_phone) DO NOTHING
+            VALUES (%s, %s, %s) ON CONFLICT (story_id, customer_phone) DO NOTHING
         """, (f"SV{uuid.uuid4().hex[:8]}", story_id, body.customer_phone))
         cur.execute("UPDATE store_stories SET views = views + 1 WHERE id = %s", (story_id,))
         conn.commit()
@@ -1016,7 +1030,6 @@ def delete_story(story_id: str):
     except Exception as e:
         return {"error": str(e)}
 
-# ---- SOCIAL PROOF ----
 @app.post("/social/view/{product_id}")
 def track_social_view(product_id: str, store_id: str):
     try:
@@ -1027,16 +1040,9 @@ def track_social_view(product_id: str, store_id: str):
             VALUES (%s, %s, 1, 1, CURRENT_DATE)
             ON CONFLICT (product_id)
             DO UPDATE SET
-                views_today = CASE
-                    WHEN social_proof.last_reset < CURRENT_DATE THEN 1
-                    ELSE social_proof.views_today + 1
-                END,
-                viewers_now = CASE
-                    WHEN social_proof.last_reset < CURRENT_DATE THEN 1
-                    ELSE social_proof.viewers_now + 1
-                END,
-                last_reset = CURRENT_DATE,
-                updated_at = NOW()
+                views_today = CASE WHEN social_proof.last_reset < CURRENT_DATE THEN 1 ELSE social_proof.views_today + 1 END,
+                viewers_now = CASE WHEN social_proof.last_reset < CURRENT_DATE THEN 1 ELSE social_proof.viewers_now + 1 END,
+                last_reset = CURRENT_DATE, updated_at = NOW()
         """, (product_id, store_id))
         conn.commit()
         conn.close()
@@ -1049,10 +1055,7 @@ def get_social_proof(product_id: str):
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("""
-            SELECT * FROM social_proof
-            WHERE product_id = %s AND last_reset = CURRENT_DATE
-        """, (product_id,))
+        cur.execute("SELECT * FROM social_proof WHERE product_id = %s AND last_reset = CURRENT_DATE", (product_id,))
         proof = cur.fetchone()
         conn.close()
         if not proof:
@@ -1060,18 +1063,10 @@ def get_social_proof(product_id: str):
         orders = proof["orders_today"]
         views = proof["views_today"]
         message = None
-        if orders >= 5:
-            message = f"🔥 {orders} people ordered this today!"
-        elif orders >= 2:
-            message = f"✨ {orders} people ordered this today"
-        elif views >= 10:
-            message = f"👀 {views} people viewed this today"
-        return {
-            "orders_today": orders,
-            "views_today": views,
-            "viewers_now": proof["viewers_now"],
-            "message": message
-        }
+        if orders >= 5: message = f"🔥 {orders} people ordered this today!"
+        elif orders >= 2: message = f"✨ {orders} people ordered this today"
+        elif views >= 10: message = f"👀 {views} people viewed this today"
+        return {"orders_today": orders, "views_today": views, "viewers_now": proof["viewers_now"], "message": message}
     except Exception as e:
         return {"error": str(e)}
 
@@ -1082,24 +1077,225 @@ def get_store_social_proof(store_id: str):
         cur = conn.cursor()
         cur.execute("""
             SELECT SUM(orders_today) as total_orders, SUM(views_today) as total_views
-            FROM social_proof
-            WHERE store_id = %s AND last_reset = CURRENT_DATE
+            FROM social_proof WHERE store_id = %s AND last_reset = CURRENT_DATE
         """, (store_id,))
         result = cur.fetchone()
         conn.close()
         total_orders = result["total_orders"] or 0
         total_views = result["total_views"] or 0
         message = None
-        if total_orders >= 10:
-            message = f"🔥 {total_orders} orders from this store today!"
-        elif total_orders >= 3:
-            message = f"✨ {total_orders} people ordered from here today"
-        elif total_views >= 20:
-            message = f"👀 Popular store today!"
-        return {
-            "total_orders_today": total_orders,
-            "total_views_today": total_views,
-            "message": message
+        if total_orders >= 10: message = f"🔥 {total_orders} orders from this store today!"
+        elif total_orders >= 3: message = f"✨ {total_orders} people ordered from here today"
+        elif total_views >= 20: message = f"👀 Popular store today!"
+        return {"total_orders_today": total_orders, "total_views_today": total_views, "message": message}
+    except Exception as e:
+        return {"error": str(e)}
+
+# ============================================
+# PHASE 4 ROUTES
+# ============================================
+
+# ---- ORDER STATUS UPDATES ----
+
+@app.patch("/orders/{order_id}/status")
+def update_order_status(order_id: str, body: OrderStatusUpdate):
+    try:
+        valid_statuses = ["confirmed", "packed", "out_for_delivery", "delivered"]
+        if body.status not in valid_statuses:
+            return {"error": f"Invalid status. Must be one of: {valid_statuses}"}
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM orders WHERE order_id = %s", (order_id,))
+        order = cur.fetchone()
+        if not order:
+            conn.close()
+            return {"error": "Order not found"}
+
+        # Update timestamp fields
+        timestamp_field = {
+            "packed": "packed_at",
+            "out_for_delivery": "out_for_delivery_at",
+            "delivered": "delivered_at"
+        }.get(body.status)
+
+        if timestamp_field:
+            cur.execute(f"""
+                UPDATE orders SET current_status = %s, {timestamp_field} = NOW()
+                WHERE order_id = %s
+            """, (body.status, order_id))
+        else:
+            cur.execute("UPDATE orders SET current_status = %s WHERE order_id = %s", (body.status, order_id))
+
+        # Log status history
+        cur.execute("""
+            INSERT INTO order_status_history (id, order_id, status, updated_by, updated_by_id, note)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (f"SH{uuid.uuid4().hex[:8]}", order_id, body.status,
+              body.updated_by, body.updated_by_id, body.note))
+
+        conn.commit()
+        conn.close()
+
+        status_messages = {
+            "packed": "Order packed! 📦 Delivery partner notified.",
+            "out_for_delivery": "Order picked up! 🛵 On the way.",
+            "delivered": "Order delivered! ✅"
         }
+
+        return {"success": True, "status": body.status,
+                "message": status_messages.get(body.status, "Status updated!")}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/orders/{order_id}/status")
+def get_order_status(order_id: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM orders WHERE order_id = %s", (order_id,))
+        order = cur.fetchone()
+        if not order:
+            conn.close()
+            return {"error": "Order not found"}
+
+        cur.execute("""
+            SELECT * FROM order_status_history WHERE order_id = %s ORDER BY created_at ASC
+        """, (order_id,))
+        history = cur.fetchall()
+        conn.close()
+
+        current = order["current_status"] or "confirmed"
+
+        stages = [
+            {"status": "confirmed", "label": "Order confirmed", "emoji": "✅",
+             "eta": "Just now", "done": True},
+            {"status": "packed", "label": "Store packing your order", "emoji": "📦",
+             "eta": "~10 mins", "done": current in ["packed", "out_for_delivery", "delivered"],
+             "time": str(order["packed_at"]) if order.get("packed_at") else None},
+            {"status": "out_for_delivery", "label": "Out for delivery", "emoji": "🛵",
+             "eta": "~20 mins", "done": current in ["out_for_delivery", "delivered"],
+             "time": str(order["out_for_delivery_at"]) if order.get("out_for_delivery_at") else None},
+            {"status": "delivered", "label": "Delivered to your door", "emoji": "🏠",
+             "eta": "~35 mins", "done": current == "delivered",
+             "time": str(order["delivered_at"]) if order.get("delivered_at") else None},
+        ]
+
+        return {
+            "order_id": order_id,
+            "current_status": current,
+            "stages": stages,
+            "history": [dict(h) for h in history],
+            "delivery_partner": order.get("delivery_partner_name"),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+# ---- CHAT ----
+
+@app.post("/chat")
+def send_chat_message(body: ChatMessage):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        msg_id = f"MSG{uuid.uuid4().hex[:8]}"
+        cur.execute("""
+            INSERT INTO chat_messages (id, order_id, sender, sender_name, message)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (msg_id, body.order_id, body.sender, body.sender_name, body.message))
+        conn.commit()
+        conn.close()
+        return {"success": True, "message_id": msg_id}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/chat/{order_id}")
+def get_chat_messages(order_id: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT * FROM chat_messages WHERE order_id = %s ORDER BY created_at ASC
+        """, (order_id,))
+        messages = cur.fetchall()
+        conn.close()
+        return {"messages": [dict(m) for m in messages]}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.patch("/chat/{order_id}/read")
+def mark_chat_read(order_id: str, sender: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        # Mark messages from the other party as read
+        other_sender = "store" if sender == "customer" else "customer"
+        cur.execute("""
+            UPDATE chat_messages SET is_read = TRUE
+            WHERE order_id = %s AND sender = %s AND is_read = FALSE
+        """, (order_id, other_sender))
+        conn.commit()
+        conn.close()
+        return {"success": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/chat/{order_id}/unread")
+def get_unread_count(order_id: str, sender: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        other_sender = "store" if sender == "customer" else "customer"
+        cur.execute("""
+            SELECT COUNT(*) as unread FROM chat_messages
+            WHERE order_id = %s AND sender = %s AND is_read = FALSE
+        """, (order_id, other_sender))
+        result = cur.fetchone()
+        conn.close()
+        return {"unread": result["unread"] if result else 0}
+    except Exception as e:
+        return {"error": str(e)}
+
+# ---- INVOICES ----
+
+@app.get("/invoice/{order_id}")
+def get_invoice(order_id: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM invoices WHERE order_id = %s", (order_id,))
+        invoice = cur.fetchone()
+        conn.close()
+        if not invoice:
+            return {"error": "Invoice not found"}
+        return {"invoice": dict(invoice)}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/invoices/customer/{customer_phone}")
+def get_customer_invoices(customer_phone: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT * FROM invoices WHERE customer_phone = %s ORDER BY created_at DESC
+        """, (customer_phone,))
+        invoices = cur.fetchall()
+        conn.close()
+        return {"invoices": [dict(i) for i in invoices]}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/invoices/store/{store_id}")
+def get_store_invoices(store_id: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT * FROM invoices WHERE store_id = %s ORDER BY created_at DESC
+        """, (store_id,))
+        invoices = cur.fetchall()
+        conn.close()
+        return {"invoices": [dict(i) for i in invoices]}
     except Exception as e:
         return {"error": str(e)}
