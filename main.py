@@ -1728,3 +1728,219 @@ def get_store_gst_invoices(store_id: str):
         }
     except Exception as e:
         return {"error": str(e)}
+
+# ============================================
+# STORE PAYMENT DETAILS
+# ============================================
+
+class StorePaymentDetails(BaseModel):
+    store_id: str
+    payment_method: str  # 'bank', 'upi', 'both'
+    bank_name: Optional[str] = None
+    account_number: Optional[str] = None
+    ifsc_code: Optional[str] = None
+    account_holder_name: Optional[str] = None
+    upi_id: Optional[str] = None
+
+class PartnerPaymentDetails(BaseModel):
+    partner_phone: str
+    upi_id: str
+
+class PayoutRequest(BaseModel):
+    requester_type: str  # 'store', 'partner'
+    requester_id: str
+    requester_name: str
+    amount: int
+    payment_method: str  # 'bank', 'upi'
+    payment_details: dict
+
+@app.post("/store/payment-details")
+def save_store_payment_details(body: StorePaymentDetails):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO store_payment_details 
+            (store_id, payment_method, bank_name, account_number, ifsc_code, account_holder_name, upi_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (store_id) DO UPDATE SET
+                payment_method = %s,
+                bank_name = %s,
+                account_number = %s,
+                ifsc_code = %s,
+                account_holder_name = %s,
+                upi_id = %s,
+                updated_at = NOW()
+        """, (
+            body.store_id, body.payment_method, body.bank_name,
+            body.account_number, body.ifsc_code, body.account_holder_name, body.upi_id,
+            body.payment_method, body.bank_name, body.account_number,
+            body.ifsc_code, body.account_holder_name, body.upi_id
+        ))
+        conn.commit()
+        conn.close()
+        return {"success": True, "message": "Payment details saved!"}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/store/payment-details/{store_id}")
+def get_store_payment_details(store_id: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM store_payment_details WHERE store_id = %s", (store_id,))
+        details = cur.fetchone()
+        conn.close()
+        if not details:
+            return {"exists": False}
+        return {"exists": True, "details": dict(details)}
+    except Exception as e:
+        return {"error": str(e)}
+
+# ============================================
+# PARTNER PAYMENT DETAILS
+# ============================================
+
+@app.post("/partner/payment-details")
+def save_partner_payment_details(body: PartnerPaymentDetails):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO partner_payment_details (partner_phone, upi_id)
+            VALUES (%s, %s)
+            ON CONFLICT (partner_phone) DO UPDATE SET
+                upi_id = %s, updated_at = NOW()
+        """, (body.partner_phone, body.upi_id, body.upi_id))
+        conn.commit()
+        conn.close()
+        return {"success": True, "message": "UPI ID saved!"}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/partner/payment-details/{partner_phone}")
+def get_partner_payment_details(partner_phone: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM partner_payment_details WHERE partner_phone = %s", (partner_phone,))
+        details = cur.fetchone()
+        conn.close()
+        if not details:
+            return {"exists": False}
+        return {"exists": True, "details": dict(details)}
+    except Exception as e:
+        return {"error": str(e)}
+
+# ============================================
+# PARTNER EARNINGS
+# ============================================
+
+@app.post("/partner/earnings/{order_id}")
+def log_partner_earning(order_id: str, body: dict):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO partner_earnings (id, partner_phone, order_id, amount, status)
+            VALUES (%s, %s, %s, %s, 'pending')
+            ON CONFLICT (order_id) DO NOTHING
+        """, (f"PE{uuid.uuid4().hex[:8]}", body.get("partner_phone"), order_id, 40))
+        conn.commit()
+        conn.close()
+        return {"success": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/partner/earnings/{partner_phone}")
+def get_partner_earnings(partner_phone: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT * FROM partner_earnings 
+            WHERE partner_phone = %s 
+            ORDER BY created_at DESC
+        """, (partner_phone,))
+        earnings = cur.fetchall()
+        cur.execute("""
+            SELECT 
+                COUNT(*) as total_deliveries,
+                SUM(amount) as total_earned,
+                SUM(CASE WHEN status='pending' THEN amount ELSE 0 END) as pending_amount,
+                SUM(CASE WHEN status='paid' THEN amount ELSE 0 END) as paid_amount
+            FROM partner_earnings WHERE partner_phone = %s
+        """, (partner_phone,))
+        summary = cur.fetchone()
+        conn.close()
+        return {
+            "earnings": [dict(e) for e in earnings],
+            "summary": dict(summary) if summary else {}
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+# ============================================
+# PAYOUT REQUESTS
+# ============================================
+
+@app.post("/payout/request")
+def request_payout(body: PayoutRequest):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        request_id = f"PAY-{uuid.uuid4().hex[:8].upper()}"
+        cur.execute("""
+            INSERT INTO payout_requests 
+            (id, request_id, requester_type, requester_id, requester_name, 
+             amount, payment_method, payment_details, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending')
+        """, (
+            f"PR{uuid.uuid4().hex[:8]}", request_id,
+            body.requester_type, body.requester_id, body.requester_name,
+            body.amount, body.payment_method,
+            json.dumps(body.payment_details)
+        ))
+        conn.commit()
+        conn.close()
+        return {
+            "success": True,
+            "request_id": request_id,
+            "message": f"Payout request of ₹{body.amount} submitted successfully!"
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/payout/requests/{requester_id}")
+def get_payout_requests(requester_id: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT * FROM payout_requests 
+            WHERE requester_id = %s 
+            ORDER BY created_at DESC
+        """, (requester_id,))
+        requests = cur.fetchall()
+        conn.close()
+        return {"requests": [dict(r) for r in requests]}
+    except Exception as e:
+        return {"error": str(e)}
+
+# ============================================
+# PRODUCT AVAILABILITY TOGGLE
+# ============================================
+
+@app.patch("/products/{product_id}/availability")
+def toggle_product_availability(product_id: str, body: dict):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE products SET available = %s WHERE id = %s
+        """, (body.get("available"), product_id))
+        conn.commit()
+        conn.close()
+        return {"success": True}
+    except Exception as e:
+        return {"error": str(e)}
