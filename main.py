@@ -11,10 +11,7 @@ from psycopg2.extras import RealDictCursor
 import uuid
 import json
 import random
-from datetime import datetime, timedelta
-
-FAST2SMS_API_KEY = "ct7FUai0fNvT3hAzueIYMHQJsLkOqEb4dW89yxGnXPR5SorjVZ5ytRNE6JxYkBoO4UPAr3c8pTSGhw9b"
-otp_store = {}
+import string
 
 app = FastAPI(title="Drip'd API", version="6.0")
 
@@ -1947,46 +1944,3 @@ def toggle_product_availability(product_id: str, body: dict):
         return {"success": True}
     except Exception as e:
         return {"error": str(e)}
-
-# ============================================
-# OTP ROUTES — FAST2SMS
-# ============================================
-
-@app.post("/otp/send")
-async def send_otp(request: Request):
-    data = await request.json()
-    phone = data.get("phone", "")
-    if not phone:
-        return {"success": False, "error": "Phone number required"}
-    otp = str(random.randint(100000, 999999))
-    otp_store[phone] = {"otp": otp, "expires": datetime.now() + timedelta(minutes=10), "attempts": 0}
-    clean = phone.replace("+91","").replace(" ","").strip()
-    if clean.startswith("91") and len(clean)==12: clean=clean[2:]
-    try:
-        async with httpx.AsyncClient() as client:
-            r = await client.get("https://www.fast2sms.com/dev/bulkV2", params={"authorization": FAST2SMS_API_KEY, "variables_values": otp, "route": "otp", "numbers": clean}, timeout=10)
-            res = r.json()
-            if res.get("return")==True:
-                return {"success": True, "message": "OTP sent to your phone"}
-            else:
-                return {"success": True, "message": "OTP sent", "debug_otp": otp}
-    except:
-        return {"success": True, "message": "OTP sent", "debug_otp": otp}
-
-@app.post("/otp/verify")
-async def verify_otp(request: Request):
-    data = await request.json()
-    phone = data.get("phone","")
-    otp = data.get("otp","")
-    stored = otp_store.get(phone)
-    if not stored: return {"success": False, "error": "OTP expired. Request a new one."}
-    if datetime.now() > stored["expires"]:
-        del otp_store[phone]
-        return {"success": False, "error": "OTP expired. Request a new one."}
-    stored["attempts"] += 1
-    if stored["attempts"] > 5:
-        del otp_store[phone]
-        return {"success": False, "error": "Too many attempts. Request a new OTP."}
-    if stored["otp"] != otp: return {"success": False, "error": "Incorrect OTP. Try again."}
-    del otp_store[phone]
-    return {"success": True, "message": "Phone verified!"}
