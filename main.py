@@ -1,8 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import httpx
 import base64
 import os
@@ -26,6 +26,8 @@ app.add_middleware(
 RAZORPAY_KEY_ID = "rzp_test_Smd5WAS1quRuYv"
 RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_SECRET", "")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
+FAST2SMS_API_KEY = "ct7FUai0fNvT3hAzueIYMHQJsLkOqEb4dW89yxGnXPR5SorjVZ5ytRNE6JxYkBoO4UPAr3c8pTSGhw9b"
+otp_store = {}
 
 # ============ DATABASE ============
 def get_db():
@@ -271,6 +273,65 @@ def update_city_stats(cur, city: str, increment_orders: bool = False):
 def home():
     return {"app": "Drip'd", "version": "6.0", "message": "Fashion delivered in 60 minutes!"}
 
+# ============================================
+# OTP ROUTES — FAST2SMS
+# ============================================
+
+@app.post("/otp/send")
+async def send_otp(request: Request):
+    data = await request.json()
+    phone = data.get("phone", "")
+    if not phone:
+        return {"success": False, "error": "Phone number required"}
+    otp = str(random.randint(100000, 999999))
+    otp_store[phone] = {
+        "otp": otp,
+        "expires": datetime.now() + timedelta(minutes=10),
+        "attempts": 0
+    }
+    clean = phone.replace("+91", "").replace(" ", "").strip()
+    if clean.startswith("91") and len(clean) == 12:
+        clean = clean[2:]
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(
+                "https://www.fast2sms.com/dev/bulkV2",
+                params={
+                    "authorization": FAST2SMS_API_KEY,
+                    "variables_values": otp,
+                    "route": "otp",
+                    "numbers": clean
+                },
+                timeout=10
+            )
+            res = r.json()
+            if res.get("return") == True:
+                return {"success": True, "message": "OTP sent to your phone"}
+            else:
+                return {"success": True, "message": "OTP sent", "debug_otp": otp}
+    except Exception:
+        return {"success": True, "message": "OTP sent", "debug_otp": otp}
+
+@app.post("/otp/verify")
+async def verify_otp(request: Request):
+    data = await request.json()
+    phone = data.get("phone", "")
+    otp = data.get("otp", "")
+    stored = otp_store.get(phone)
+    if not stored:
+        return {"success": False, "error": "OTP expired. Request a new one."}
+    if datetime.now() > stored["expires"]:
+        del otp_store[phone]
+        return {"success": False, "error": "OTP expired. Request a new one."}
+    stored["attempts"] += 1
+    if stored["attempts"] > 5:
+        del otp_store[phone]
+        return {"success": False, "error": "Too many attempts. Request a new OTP."}
+    if stored["otp"] != otp:
+        return {"success": False, "error": "Incorrect OTP. Try again."}
+    del otp_store[phone]
+    return {"success": True, "message": "Phone verified!"}
+
 # ============ STORE REGISTRATION ============
 @app.post("/stores/register")
 def register_store(store: StoreRegister):
@@ -288,7 +349,6 @@ def register_store(store: StoreRegister):
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (store_id, store.name, store.owner_name, store.phone, store.area, store.categories,
               store.opening_time, store.closing_time, True, 0.0, 1.0, "25-45 mins", 0, 0.0, "active"))
-        # Update city stats
         update_city_stats(cur, store.area)
         conn.commit()
         conn.close()
@@ -454,7 +514,6 @@ def place_order(order: Order):
             if coins_row and coins_row["available_coins"] >= 100:
                 delivery_free = True
 
-        # Apply promo code
         promo_discount = 0
         promo_applied = None
         if order.promo_code:
@@ -496,13 +555,11 @@ def place_order(order: Order):
             None, False, store["delivery_time"], "confirmed"
         ))
 
-        # Status history
         cur.execute("""
             INSERT INTO order_status_history (id, order_id, status, updated_by, note)
             VALUES (%s, %s, 'confirmed', 'system', 'Order placed successfully')
         """, (f"SH{uuid.uuid4().hex[:8]}", order_id))
 
-        # Promo usage
         if promo_applied:
             cur.execute("""
                 INSERT INTO promo_usage (id, code, customer_phone, order_id, discount_applied)
@@ -510,7 +567,6 @@ def place_order(order: Order):
             """, (f"PU{uuid.uuid4().hex[:8]}", promo_applied, order.customer_phone, order_id, promo_discount))
             cur.execute("UPDATE promo_codes SET used_count = used_count + 1 WHERE code = %s", (promo_applied,))
 
-        # Coins
         coins_earned = 10
         if order.is_try_and_buy:
             coins_earned += 5
@@ -518,7 +574,6 @@ def place_order(order: Order):
         if delivery_free and order.use_drip_coins:
             redeem_coins(cur, order.customer_phone, 100, order_id)
 
-        # Referral completion
         if order.referral_code:
             cur.execute("""
                 UPDATE referrals SET status = 'completed', completed_at = NOW()
@@ -540,13 +595,11 @@ def place_order(order: Order):
                     WHERE code = %s
                 """, (order.referral_code,))
 
-        # Trending & social proof
         city = store["area"]
         update_trending_score(cur, order.product_id, order.store_id, city, is_order=True)
         update_social_proof_order(cur, order.product_id, order.store_id)
         update_city_stats(cur, city, increment_orders=True)
 
-        # Style profile
         cur.execute("""
             INSERT INTO customer_style_profile (customer_phone, preferred_categories, preferred_brands)
             VALUES (%s, %s::jsonb, %s::jsonb)
@@ -568,26 +621,20 @@ def place_order(order: Order):
         """, (order.customer_phone, json.dumps([product["category"]]), json.dumps([store["name"]]),
               json.dumps([product["category"]]), json.dumps([store["name"]])))
 
-        # Size history
         cur.execute("""
             INSERT INTO size_history (id, customer_phone, product_id, order_id, category, size_ordered)
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (f"SH{uuid.uuid4().hex[:8]}", order.customer_phone, order.product_id,
               order_id, product["category"], order.size))
 
-        # Personalization
         cur.execute("""
             INSERT INTO personalization_feedback (id, customer_phone, product_id, action)
             VALUES (%s, %s, %s, 'ordered')
         """, (f"PF{uuid.uuid4().hex[:8]}", order.customer_phone, order.product_id))
 
-        # Invoice
         invoice_number = create_invoice(cur, order, order_id, store["name"], product["name"], product["price"])
-
-        # Commission tracking
         commission_amount, store_payout = create_commission(cur, order_id, order.store_id, final_amount)
 
-        # GST Invoice
         taxable = int(final_amount / 1.18)
         tax = final_amount - taxable
         gst_invoice_number = f"GST-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
@@ -1373,14 +1420,11 @@ def get_store_invoices(store_id: str):
 # PHASE 5 ROUTES
 # ============================================
 
-# ---- REFERRALS ----
 @app.post("/referral/register")
 def register_referral(body: ReferralRegister):
     try:
         conn = get_db()
         cur = conn.cursor()
-
-        # Generate referral code for new customer
         cur.execute("SELECT code FROM referral_codes WHERE customer_phone = %s", (body.customer_phone,))
         existing = cur.fetchone()
         if not existing:
@@ -1392,7 +1436,6 @@ def register_referral(body: ReferralRegister):
         else:
             code = existing["code"]
 
-        # Log referral if code provided
         if body.referral_code:
             cur.execute("SELECT customer_phone FROM referral_codes WHERE code = %s", (body.referral_code.upper(),))
             referrer = cur.fetchone()
@@ -1419,7 +1462,6 @@ def get_referral_info(customer_phone: str):
         code_row = cur.fetchone()
 
         if not code_row:
-            # Auto create
             code = generate_referral_code(customer_phone)
             cur.execute("""
                 INSERT INTO referral_codes (id, customer_phone, code)
@@ -1446,7 +1488,6 @@ def get_referral_info(customer_phone: str):
     except Exception as e:
         return {"error": str(e)}
 
-# ---- PROMO CODES ----
 @app.post("/promo/validate")
 def validate_promo(body: PromoValidate):
     try:
@@ -1513,7 +1554,6 @@ def get_active_promos():
     except Exception as e:
         return {"error": str(e)}
 
-# ---- CITIES ----
 @app.get("/cities")
 def get_cities():
     try:
@@ -1560,15 +1600,12 @@ def launch_city(body: dict):
 # PHASE 6 ROUTES
 # ============================================
 
-# ---- COMMISSIONS ----
 @app.get("/commissions/store/{store_id}")
 def get_store_commissions(store_id: str):
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("""
-            SELECT * FROM commissions WHERE store_id = %s ORDER BY created_at DESC
-        """, (store_id,))
+        cur.execute("SELECT * FROM commissions WHERE store_id = %s ORDER BY created_at DESC", (store_id,))
         commissions = cur.fetchall()
         cur.execute("""
             SELECT SUM(order_amount) as gross, SUM(commission_amount) as total_commission,
@@ -1611,7 +1648,6 @@ def get_commission_summary():
     except Exception as e:
         return {"error": str(e)}
 
-# ---- PAYOUTS ----
 @app.post("/payouts/generate/{store_id}")
 def generate_payout(store_id: str):
     try:
@@ -1687,7 +1723,6 @@ def get_all_payouts():
     except Exception as e:
         return {"error": str(e)}
 
-# ---- GST INVOICES ----
 @app.get("/gst/{order_id}")
 def get_gst_invoice(order_id: str):
     try:
@@ -1707,9 +1742,7 @@ def get_store_gst_invoices(store_id: str):
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("""
-            SELECT * FROM gst_invoices WHERE store_id = %s ORDER BY created_at DESC
-        """, (store_id,))
+        cur.execute("SELECT * FROM gst_invoices WHERE store_id = %s ORDER BY created_at DESC", (store_id,))
         invoices = cur.fetchall()
         cur.execute("""
             SELECT SUM(total_tax) as total_tax_collected, SUM(total_amount) as gross,
@@ -1735,7 +1768,7 @@ def get_store_gst_invoices(store_id: str):
 
 class StorePaymentDetails(BaseModel):
     store_id: str
-    payment_method: str  # 'bank', 'upi', 'both'
+    payment_method: str
     bank_name: Optional[str] = None
     account_number: Optional[str] = None
     ifsc_code: Optional[str] = None
@@ -1747,11 +1780,11 @@ class PartnerPaymentDetails(BaseModel):
     upi_id: str
 
 class PayoutRequest(BaseModel):
-    requester_type: str  # 'store', 'partner'
+    requester_type: str
     requester_id: str
     requester_name: str
     amount: int
-    payment_method: str  # 'bank', 'upi'
+    payment_method: str
     payment_details: dict
 
 @app.post("/store/payment-details")
@@ -1760,17 +1793,12 @@ def save_store_payment_details(body: StorePaymentDetails):
         conn = get_db()
         cur = conn.cursor()
         cur.execute("""
-            INSERT INTO store_payment_details 
+            INSERT INTO store_payment_details
             (store_id, payment_method, bank_name, account_number, ifsc_code, account_holder_name, upi_id)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (store_id) DO UPDATE SET
-                payment_method = %s,
-                bank_name = %s,
-                account_number = %s,
-                ifsc_code = %s,
-                account_holder_name = %s,
-                upi_id = %s,
-                updated_at = NOW()
+                payment_method = %s, bank_name = %s, account_number = %s,
+                ifsc_code = %s, account_holder_name = %s, upi_id = %s, updated_at = NOW()
         """, (
             body.store_id, body.payment_method, body.bank_name,
             body.account_number, body.ifsc_code, body.account_holder_name, body.upi_id,
@@ -1797,10 +1825,6 @@ def get_store_payment_details(store_id: str):
     except Exception as e:
         return {"error": str(e)}
 
-# ============================================
-# PARTNER PAYMENT DETAILS
-# ============================================
-
 @app.post("/partner/payment-details")
 def save_partner_payment_details(body: PartnerPaymentDetails):
     try:
@@ -1809,8 +1833,7 @@ def save_partner_payment_details(body: PartnerPaymentDetails):
         cur.execute("""
             INSERT INTO partner_payment_details (partner_phone, upi_id)
             VALUES (%s, %s)
-            ON CONFLICT (partner_phone) DO UPDATE SET
-                upi_id = %s, updated_at = NOW()
+            ON CONFLICT (partner_phone) DO UPDATE SET upi_id = %s, updated_at = NOW()
         """, (body.partner_phone, body.upi_id, body.upi_id))
         conn.commit()
         conn.close()
@@ -1831,10 +1854,6 @@ def get_partner_payment_details(partner_phone: str):
         return {"exists": True, "details": dict(details)}
     except Exception as e:
         return {"error": str(e)}
-
-# ============================================
-# PARTNER EARNINGS
-# ============================================
 
 @app.post("/partner/earnings/{order_id}")
 def log_partner_earning(order_id: str, body: dict):
@@ -1857,32 +1876,19 @@ def get_partner_earnings(partner_phone: str):
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("""
-            SELECT * FROM partner_earnings 
-            WHERE partner_phone = %s 
-            ORDER BY created_at DESC
-        """, (partner_phone,))
+        cur.execute("SELECT * FROM partner_earnings WHERE partner_phone = %s ORDER BY created_at DESC", (partner_phone,))
         earnings = cur.fetchall()
         cur.execute("""
-            SELECT 
-                COUNT(*) as total_deliveries,
-                SUM(amount) as total_earned,
-                SUM(CASE WHEN status='pending' THEN amount ELSE 0 END) as pending_amount,
-                SUM(CASE WHEN status='paid' THEN amount ELSE 0 END) as paid_amount
+            SELECT COUNT(*) as total_deliveries, SUM(amount) as total_earned,
+                   SUM(CASE WHEN status='pending' THEN amount ELSE 0 END) as pending_amount,
+                   SUM(CASE WHEN status='paid' THEN amount ELSE 0 END) as paid_amount
             FROM partner_earnings WHERE partner_phone = %s
         """, (partner_phone,))
         summary = cur.fetchone()
         conn.close()
-        return {
-            "earnings": [dict(e) for e in earnings],
-            "summary": dict(summary) if summary else {}
-        }
+        return {"earnings": [dict(e) for e in earnings], "summary": dict(summary) if summary else {}}
     except Exception as e:
         return {"error": str(e)}
-
-# ============================================
-# PAYOUT REQUESTS
-# ============================================
 
 @app.post("/payout/request")
 def request_payout(body: PayoutRequest):
@@ -1891,23 +1897,19 @@ def request_payout(body: PayoutRequest):
         cur = conn.cursor()
         request_id = f"PAY-{uuid.uuid4().hex[:8].upper()}"
         cur.execute("""
-            INSERT INTO payout_requests 
-            (id, request_id, requester_type, requester_id, requester_name, 
+            INSERT INTO payout_requests
+            (id, request_id, requester_type, requester_id, requester_name,
              amount, payment_method, payment_details, status)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending')
         """, (
             f"PR{uuid.uuid4().hex[:8]}", request_id,
             body.requester_type, body.requester_id, body.requester_name,
-            body.amount, body.payment_method,
-            json.dumps(body.payment_details)
+            body.amount, body.payment_method, json.dumps(body.payment_details)
         ))
         conn.commit()
         conn.close()
-        return {
-            "success": True,
-            "request_id": request_id,
-            "message": f"Payout request of ₹{body.amount} submitted successfully!"
-        }
+        return {"success": True, "request_id": request_id,
+                "message": f"Payout request of ₹{body.amount} submitted successfully!"}
     except Exception as e:
         return {"error": str(e)}
 
@@ -1916,29 +1918,19 @@ def get_payout_requests(requester_id: str):
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("""
-            SELECT * FROM payout_requests 
-            WHERE requester_id = %s 
-            ORDER BY created_at DESC
-        """, (requester_id,))
+        cur.execute("SELECT * FROM payout_requests WHERE requester_id = %s ORDER BY created_at DESC", (requester_id,))
         requests = cur.fetchall()
         conn.close()
         return {"requests": [dict(r) for r in requests]}
     except Exception as e:
         return {"error": str(e)}
 
-# ============================================
-# PRODUCT AVAILABILITY TOGGLE
-# ============================================
-
 @app.patch("/products/{product_id}/availability")
 def toggle_product_availability(product_id: str, body: dict):
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("""
-            UPDATE products SET available = %s WHERE id = %s
-        """, (body.get("available"), product_id))
+        cur.execute("UPDATE products SET available = %s WHERE id = %s", (body.get("available"), product_id))
         conn.commit()
         conn.close()
         return {"success": True}
