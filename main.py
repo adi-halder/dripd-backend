@@ -348,7 +348,7 @@ def register_store(store: StoreRegister):
             INSERT INTO stores (id, name, owner_name, phone, area, categories, opening_time, closing_time, is_open, rating, distance_km, delivery_time, total_ratings, rating_sum, status)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (store_id, store.name, store.owner_name, store.phone, store.area, store.categories,
-              store.opening_time, store.closing_time, True, 0.0, 1.0, "25-45 mins", 0, 0.0, "active"))
+              store.opening_time, store.closing_time, False, 0.0, 1.0, "25-45 mins", 0, 0.0, "pending"))
         update_city_stats(cur, store.area)
         conn.commit()
         conn.close()
@@ -365,7 +365,11 @@ def login_store(body: StoreLogin):
         store = cur.fetchone()
         conn.close()
         if not store:
-            return {"error": "Phone number not registered. Please register first!"}
+            return {"error": "Phone number not registered. Please register first!", "not_registered": True}
+        if store["status"] == "pending":
+            return {"error": "Your store is pending approval. We'll notify you within 24 hours!", "pending": True}
+        if store["status"] == "rejected":
+            return {"error": "Your application was not approved. Contact getdripd1@gmail.com", "rejected": True}
         return {"success": True, "store": dict(store)}
     except Exception as e:
         return {"error": str(e)}
@@ -376,7 +380,7 @@ def get_stores():
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("SELECT * FROM stores WHERE is_open = TRUE ORDER BY rating DESC")
+        cur.execute("SELECT * FROM stores WHERE is_open = TRUE AND status = 'active' ORDER BY rating DESC")
         stores = cur.fetchall()
         conn.close()
         return {"stores": [dict(s) for s in stores]}
@@ -1934,5 +1938,178 @@ def toggle_product_availability(product_id: str, body: dict):
         conn.commit()
         conn.close()
         return {"success": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ============================================
+# STORE APPROVAL ROUTES (ADMIN)
+# ============================================
+
+@app.get("/admin/stores/pending")
+def get_pending_stores():
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM stores WHERE status = 'pending' ORDER BY id DESC")
+        stores = cur.fetchall()
+        conn.close()
+        return {"stores": [dict(s) for s in stores], "total": len(stores)}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.patch("/admin/stores/{store_id}/approve")
+def approve_store(store_id: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE stores SET status = 'active', is_open = TRUE WHERE id = %s", (store_id,))
+        conn.commit()
+        conn.close()
+        return {"success": True, "message": "Store approved and is now live!"}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.patch("/admin/stores/{store_id}/reject")
+def reject_store(store_id: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE stores SET status = 'rejected', is_open = FALSE WHERE id = %s", (store_id,))
+        conn.commit()
+        conn.close()
+        return {"success": True, "message": "Store rejected."}
+    except Exception as e:
+        return {"error": str(e)}
+
+# ============================================
+# DELIVERY PARTNER ROUTES
+# ============================================
+
+class PartnerRegister(BaseModel):
+    name: str
+    phone: str
+    area: str
+    vehicle_type: str
+    aadhaar: str
+    upi_id: str
+
+class PartnerLogin(BaseModel):
+    phone: str
+
+@app.post("/partners/register")
+def register_partner(partner: PartnerRegister):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM delivery_partners WHERE phone = %s", (partner.phone,))
+        existing = cur.fetchone()
+        if existing:
+            conn.close()
+            return {"error": "Phone number already registered!", "already_registered": True}
+        partner_id = f"dp_{uuid.uuid4().hex[:8]}"
+        cur.execute("""
+            INSERT INTO delivery_partners
+            (id, name, phone, area, vehicle_type, aadhaar, upi_id, status, is_online, total_earnings, total_deliveries)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', FALSE, 0, 0)
+        """, (partner_id, partner.name, partner.phone, partner.area,
+              partner.vehicle_type, partner.aadhaar, partner.upi_id))
+        conn.commit()
+        conn.close()
+        return {"success": True, "partner_id": partner_id, "status": "pending",
+                "message": "Registration successful! Pending approval from Drip'd team."}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/partners/login")
+def login_partner(body: PartnerLogin):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM delivery_partners WHERE phone = %s", (body.phone,))
+        partner = cur.fetchone()
+        conn.close()
+        if not partner:
+            return {"error": "Phone number not registered. Please register first!", "not_registered": True}
+        if partner["status"] == "pending":
+            return {"error": "Your account is pending approval. We'll notify you within 24 hours!", "pending": True}
+        if partner["status"] == "rejected":
+            return {"error": "Your application was not approved. Contact getdripd1@gmail.com", "rejected": True}
+        return {"success": True, "partner": dict(partner)}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/admin/partners/pending")
+def get_pending_partners():
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM delivery_partners WHERE status = 'pending' ORDER BY id DESC")
+        partners = cur.fetchall()
+        conn.close()
+        return {"partners": [dict(p) for p in partners], "total": len(partners)}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/admin/partners/all")
+def get_all_partners():
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM delivery_partners ORDER BY id DESC")
+        partners = cur.fetchall()
+        conn.close()
+        return {"partners": [dict(p) for p in partners], "total": len(partners)}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.patch("/admin/partners/{partner_id}/approve")
+def approve_partner(partner_id: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE delivery_partners SET status = 'approved' WHERE id = %s", (partner_id,))
+        conn.commit()
+        conn.close()
+        return {"success": True, "message": "Partner approved!"}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.patch("/admin/partners/{partner_id}/reject")
+def reject_partner(partner_id: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE delivery_partners SET status = 'rejected' WHERE id = %s", (partner_id,))
+        conn.commit()
+        conn.close()
+        return {"success": True, "message": "Partner rejected."}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.patch("/partners/{partner_id}/online")
+def toggle_partner_online(partner_id: str, body: dict):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE delivery_partners SET is_online = %s WHERE id = %s",
+                   (body.get("is_online"), partner_id))
+        conn.commit()
+        conn.close()
+        return {"success": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/partners/{partner_id}/earnings")
+def get_partner_earnings_summary(partner_id: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM delivery_partners WHERE id = %s", (partner_id,))
+        partner = cur.fetchone()
+        conn.close()
+        if not partner:
+            return {"error": "Partner not found"}
+        return {"success": True, "partner": dict(partner)}
     except Exception as e:
         return {"error": str(e)}
