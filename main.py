@@ -82,6 +82,8 @@ class StoreRegister(BaseModel):
     categories: List[str]
     opening_time: str
     closing_time: str
+    latitude: float = None
+    longitude: float = None
 
 class StoreLogin(BaseModel):
     phone: str
@@ -345,10 +347,11 @@ def register_store(store: StoreRegister):
             return {"error": "Phone number already registered!"}
         store_id = f"s_{uuid.uuid4().hex[:8]}"
         cur.execute("""
-            INSERT INTO stores (id, name, owner_name, phone, area, categories, opening_time, closing_time, is_open, rating, distance_km, delivery_time, total_ratings, rating_sum, status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO stores (id, name, owner_name, phone, area, categories, opening_time, closing_time, is_open, rating, distance_km, delivery_time, total_ratings, rating_sum, status, latitude, longitude)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (store_id, store.name, store.owner_name, store.phone, store.area, store.categories,
-              store.opening_time, store.closing_time, False, 0.0, 1.0, "25-45 mins", 0, 0.0, "pending"))
+              store.opening_time, store.closing_time, False, 0.0, 1.0, "25-45 mins", 0, 0.0, "pending",
+              store.latitude, store.longitude))
         update_city_stats(cur, store.area)
         conn.commit()
         conn.close()
@@ -376,26 +379,67 @@ def login_store(body: StoreLogin):
 
 # ============ STORES ============
 @app.get("/stores")
-def get_stores():
+def get_stores(lat: float = None, lng: float = None, radius_km: float = 7.0):
     try:
+        import math
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("SELECT * FROM stores WHERE is_open = TRUE AND status = 'active' ORDER BY rating DESC")
+        cur.execute("SELECT * FROM stores WHERE status = 'active' ORDER BY rating DESC")
         stores = cur.fetchall()
         conn.close()
-        return {"stores": [dict(s) for s in stores]}
+        result = []
+        for s in stores:
+            store = dict(s)
+            # If customer sent coordinates AND store has coordinates, filter by distance
+            if lat is not None and lng is not None and store.get("latitude") and store.get("longitude"):
+                slat, slng = float(store["latitude"]), float(store["longitude"])
+                # Haversine formula
+                R = 6371
+                dlat = math.radians(slat - lat)
+                dlng = math.radians(slng - lng)
+                a = math.sin(dlat/2)**2 + math.cos(math.radians(lat)) * math.cos(math.radians(slat)) * math.sin(dlng/2)**2
+                dist = R * 2 * math.asin(math.sqrt(a))
+                if dist > radius_km:
+                    continue  # too far, skip
+                store["distance_km"] = round(dist, 1)
+                # Estimate delivery time (avg 20 km/h in city traffic)
+                mins = int((dist / 20) * 60) + 10  # +10 for prep
+                store["delivery_time"] = f"~{mins} min"
+            else:
+                store["delivery_time"] = store.get("delivery_time") or "~30 min"
+            result.append(store)
+        return {"stores": result}
     except Exception as e:
         return {"error": str(e)}
 
 @app.get("/stores/category/{category}")
-def get_stores_by_category(category: str):
+def get_stores_by_category(category: str, lat: float = None, lng: float = None, radius_km: float = 7.0):
     try:
+        import math
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("SELECT * FROM stores WHERE %s = ANY(categories) AND is_open = TRUE", (category,))
+        cur.execute("SELECT * FROM stores WHERE %s = ANY(categories) AND status = 'active'", (category,))
         stores = cur.fetchall()
         conn.close()
-        return {"stores": [dict(s) for s in stores]}
+        result = []
+        for s in stores:
+            store = dict(s)
+            if lat is not None and lng is not None and store.get("latitude") and store.get("longitude"):
+                slat, slng = float(store["latitude"]), float(store["longitude"])
+                R = 6371
+                dlat = math.radians(slat - lat)
+                dlng = math.radians(slng - lng)
+                a = math.sin(dlat/2)**2 + math.cos(math.radians(lat)) * math.cos(math.radians(slat)) * math.sin(dlng/2)**2
+                dist = R * 2 * math.asin(math.sqrt(a))
+                if dist > radius_km:
+                    continue
+                store["distance_km"] = round(dist, 1)
+                mins = int((dist / 20) * 60) + 10
+                store["delivery_time"] = f"~{mins} min"
+            else:
+                store["delivery_time"] = store.get("delivery_time") or "~30 min"
+            result.append(store)
+        return {"stores": result}
     except Exception as e:
         return {"error": str(e)}
 
