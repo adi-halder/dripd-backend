@@ -2113,3 +2113,87 @@ def get_partner_earnings_summary(partner_id: str):
         return {"success": True, "partner": dict(partner)}
     except Exception as e:
         return {"error": str(e)}
+
+
+# ============================================
+# CUSTOMER ROUTES
+# ============================================
+
+class CustomerRegister(BaseModel):
+    name: str
+    phone: str
+    address: Optional[str] = None
+    referral_code: Optional[str] = None
+
+class CustomerLogin(BaseModel):
+    phone: str
+
+@app.post("/customers/register")
+def register_customer(customer: CustomerRegister):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        # Check if already registered
+        cur.execute("SELECT * FROM customers WHERE phone = %s", (customer.phone,))
+        existing = cur.fetchone()
+        if existing:
+            conn.close()
+            return {"success": True, "customer": dict(existing), "already_registered": True}
+        # Create new customer
+        customer_id = f"c_{uuid.uuid4().hex[:8]}"
+        cur.execute("""
+            INSERT INTO customers (id, name, phone, address)
+            VALUES (%s, %s, %s, %s)
+        """, (customer_id, customer.name, customer.phone, customer.address))
+        conn.commit()
+        cur.execute("SELECT * FROM customers WHERE id = %s", (customer_id,))
+        new_customer = cur.fetchone()
+        conn.close()
+        return {"success": True, "customer": dict(new_customer)}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/customers/login")
+def login_customer(body: CustomerLogin):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM customers WHERE phone = %s", (body.phone,))
+        customer = cur.fetchone()
+        conn.close()
+        if not customer:
+            return {"success": False, "not_registered": True, "error": "Phone not registered. Please sign up first!"}
+        return {"success": True, "customer": dict(customer)}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/customers/{phone}")
+def get_customer(phone: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM customers WHERE phone = %s", (phone,))
+        customer = cur.fetchone()
+        conn.close()
+        if not customer:
+            return {"exists": False}
+        return {"exists": True, "customer": dict(customer)}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.patch("/customers/{phone}")
+def update_customer(phone: str, body: dict):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        if body.get("name"):
+            cur.execute("UPDATE customers SET name = %s WHERE phone = %s", (body["name"], phone))
+        if body.get("address"):
+            cur.execute("UPDATE customers SET address = %s WHERE phone = %s", (body["address"], phone))
+        conn.commit()
+        cur.execute("SELECT * FROM customers WHERE phone = %s", (phone,))
+        customer = cur.fetchone()
+        conn.close()
+        return {"success": True, "customer": dict(customer)}
+    except Exception as e:
+        return {"error": str(e)}
