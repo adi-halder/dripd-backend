@@ -384,7 +384,7 @@ def get_stores(lat: float = None, lng: float = None, radius_km: float = 7.0):
         import math
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("SELECT * FROM stores WHERE status = 'active' ORDER BY rating DESC")
+        cur.execute("SELECT * FROM stores WHERE status = 'active' OR is_approved = TRUE ORDER BY rating DESC")
         stores = cur.fetchall()
         conn.close()
         result = []
@@ -462,7 +462,7 @@ def get_products(store_id: str):
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("SELECT * FROM products WHERE store_id = %s AND available = TRUE", (store_id,))
+        cur.execute("SELECT * FROM products WHERE store_id = %s AND (available = TRUE OR available IS NULL)", (store_id,))
         products = cur.fetchall()
         conn.close()
         return {"products": [dict(p) for p in products]}
@@ -2016,6 +2016,32 @@ def get_pending_stores():
         stores = cur.fetchall()
         conn.close()
         return {"stores": [dict(s) for s in stores], "total": len(stores)}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/stores/{store_id}/approve")
+def approve_store_post(store_id: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE stores SET status = 'active', is_approved = TRUE, is_open = TRUE WHERE id = %s", (store_id,))
+        conn.commit()
+        conn.close()
+        return {"success": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.delete("/stores/{store_id}")
+def delete_store(store_id: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM products WHERE store_id = %s", (store_id,))
+        cur.execute("DELETE FROM stores WHERE id = %s", (store_id,))
+        conn.commit()
+        conn.close()
+        return {"success": True}
     except Exception as e:
         return {"error": str(e)}
 
