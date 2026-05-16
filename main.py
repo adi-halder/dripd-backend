@@ -481,6 +481,23 @@ def update_store_status(store_id: str, body: dict):
     except Exception as e:
         return {"error": str(e)}
 
+
+@app.patch("/stores/{store_id}/location")
+def update_store_location(store_id: str, body: dict):
+    try:
+        lat = body.get("latitude")
+        lng = body.get("longitude")
+        if not lat or not lng:
+            return {"error": "latitude and longitude required"}
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE stores SET latitude = %s, longitude = %s WHERE id = %s", (lat, lng, store_id))
+        conn.commit()
+        conn.close()
+        return {"success": True}
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/stores/{store_id}/ratings")
 def get_store_ratings(store_id: str):
     try:
