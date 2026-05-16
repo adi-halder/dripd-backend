@@ -80,8 +80,8 @@ class StoreRegister(BaseModel):
     phone: str
     area: str
     categories: List[str]
-    opening_time: str
-    closing_time: str
+    opening_time: str = "10:00"
+    closing_time: str = "22:00"
     latitude: float = None
     longitude: float = None
 
