@@ -2007,6 +2007,19 @@ def toggle_product_availability(product_id: str, body: dict):
 # STORE APPROVAL ROUTES (ADMIN)
 # ============================================
 
+
+@app.get("/admin/stores")
+def get_all_stores_admin():
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM stores ORDER BY id DESC")
+        stores = cur.fetchall()
+        conn.close()
+        return {"stores": [dict(s) for s in stores]}
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/admin/stores/pending")
 def get_pending_stores():
     try:
