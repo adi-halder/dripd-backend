@@ -384,7 +384,7 @@ def get_stores(lat: float = None, lng: float = None, radius_km: float = 7.0):
         import math
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("SELECT * FROM stores WHERE status = 'active' OR is_approved = TRUE ORDER BY rating DESC")
+        cur.execute("SELECT * FROM stores WHERE status = 'active' ORDER BY rating DESC")
         stores = cur.fetchall()
         conn.close()
         result = []
@@ -2224,7 +2224,14 @@ def get_all_stores_admin():
         cur.execute("SELECT * FROM stores ORDER BY id DESC")
         stores = cur.fetchall()
         conn.close()
-        return {"stores": [dict(s) for s in stores]}
+        result = []
+        for s in stores:
+            d = dict(s)
+            # Normalize is_approved based on status if column missing
+            if 'is_approved' not in d:
+                d['is_approved'] = d.get('status') == 'active'
+            result.append(d)
+        return {"stores": result}
     except Exception as e:
         return {"error": str(e)}
 
@@ -2246,7 +2253,11 @@ def approve_store_post(store_id: str):
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("UPDATE stores SET status = 'active', is_approved = TRUE, is_open = TRUE WHERE id = %s", (store_id,))
+        # Try with is_approved column first, fall back without it
+        try:
+            cur.execute("UPDATE stores SET status = 'active', is_approved = TRUE, is_open = TRUE WHERE id = %s", (store_id,))
+        except Exception:
+            cur.execute("UPDATE stores SET status = 'active', is_open = TRUE WHERE id = %s", (store_id,))
         conn.commit()
         conn.close()
         return {"success": True}
