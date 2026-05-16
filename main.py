@@ -1890,6 +1890,214 @@ def get_store_payment_details(store_id: str):
     except Exception as e:
         return {"error": str(e)}
 
+
+# ============ ORDER DISPATCH SYSTEM ============
+
+@app.get("/partner/pending-order/{partner_id}")
+def get_pending_order_for_partner(partner_id: str):
+    """Delivery app polls this every 5 seconds when online"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        # Get partner details
+        cur.execute("SELECT * FROM delivery_partners WHERE id = %s AND status = 'approved'", (partner_id,))
+        partner = cur.fetchone()
+        if not partner:
+            conn.close()
+            return {"order": None}
+
+        # Check if partner already has an active order
+        cur.execute("""
+            SELECT o.*, s.name as store_name, s.area as store_area
+            FROM orders o
+            LEFT JOIN stores s ON o.store_id = s.id
+            WHERE o.assigned_partner_id = %s
+            AND o.current_status IN ('confirmed', 'packed', 'out_for_delivery')
+            ORDER BY o.created_at DESC LIMIT 1
+        """, (partner_id,))
+        active = cur.fetchone()
+        if active:
+            conn.close()
+            return {"order": dict(active), "type": "active"}
+
+        # Find unassigned orders in partner's area that haven't been skipped by this partner
+        cur.execute("""
+            SELECT o.*, s.name as store_name, s.phone as store_phone,
+                   s.area as store_area, s.address as store_address,
+                   p.name as product_name, p.photo as product_photo
+            FROM orders o
+            LEFT JOIN stores s ON o.store_id = s.id
+            LEFT JOIN products p ON o.product_id = p.id
+            WHERE o.assigned_partner_id IS NULL
+            AND o.current_status = 'confirmed'
+            AND o.created_at > NOW() - INTERVAL '30 minutes'
+            AND o.order_id NOT IN (
+                SELECT order_id FROM partner_skips WHERE partner_id = %s
+            )
+            ORDER BY o.created_at ASC
+            LIMIT 1
+        """, (partner_id,))
+        order = cur.fetchone()
+        conn.close()
+
+        if not order:
+            return {"order": None}
+
+        return {"order": dict(order), "type": "new"}
+    except Exception as e:
+        return {"error": str(e), "order": None}
+
+
+@app.post("/partner/accept-order")
+def accept_order(body: dict):
+    """Partner accepts an order"""
+    try:
+        partner_id = body.get("partner_id")
+        order_id = body.get("order_id")
+        conn = get_db()
+        cur = conn.cursor()
+
+        # Check order is still unassigned
+        cur.execute("SELECT * FROM orders WHERE order_id = %s AND assigned_partner_id IS NULL", (order_id,))
+        order = cur.fetchone()
+        if not order:
+            conn.close()
+            return {"success": False, "error": "Order already taken"}
+
+        # Get partner name
+        cur.execute("SELECT name, phone FROM delivery_partners WHERE id = %s", (partner_id,))
+        partner = cur.fetchone()
+
+        # Assign to partner
+        cur.execute("""
+            UPDATE orders
+            SET assigned_partner_id = %s, assigned_partner_name = %s,
+                assigned_partner_phone = %s, current_status = 'packed'
+            WHERE order_id = %s
+        """, (partner_id, partner["name"] if partner else "Partner",
+              partner["phone"] if partner else "", order_id))
+
+        # Log status history
+        cur.execute("""
+            INSERT INTO order_status_history (id, order_id, status, updated_by, note)
+            VALUES (%s, %s, 'packed', %s, 'Partner assigned')
+        """, (f"SH{__import__('uuid').uuid4().hex[:8]}", order_id, partner_id))
+
+        conn.commit()
+        conn.close()
+        return {"success": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/partner/skip-order")
+def skip_order(body: dict):
+    """Partner skips an order — try next partner"""
+    try:
+        partner_id = body.get("partner_id")
+        order_id = body.get("order_id")
+        conn = get_db()
+        cur = conn.cursor()
+
+        # Record skip so this partner won't see this order again
+        cur.execute("""
+            INSERT INTO partner_skips (id, partner_id, order_id)
+            VALUES (%s, %s, %s)
+            ON CONFLICT DO NOTHING
+        """, (f"PS{__import__('uuid').uuid4().hex[:8]}", partner_id, order_id))
+
+        conn.commit()
+        conn.close()
+        return {"success": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/partner/complete-delivery")
+def complete_delivery(body: dict):
+    """Partner marks order as delivered"""
+    try:
+        partner_id = body.get("partner_id")
+        order_id = body.get("order_id")
+        conn = get_db()
+        cur = conn.cursor()
+
+        # Update order status
+        cur.execute("""
+            UPDATE orders SET current_status = 'delivered', delivered_at = NOW()
+            WHERE order_id = %s AND assigned_partner_id = %s
+        """, (order_id, partner_id))
+
+        # Log status
+        cur.execute("""
+            INSERT INTO order_status_history (id, order_id, status, updated_by, note)
+            VALUES (%s, %s, 'delivered', %s, 'Delivered by partner')
+        """, (f"SH{__import__('uuid').uuid4().hex[:8]}", order_id, partner_id))
+
+        # Add partner earning
+        earning_id = f"PE{__import__('uuid').uuid4().hex[:8]}"
+        cur.execute("""
+            INSERT INTO partner_earnings (id, partner_id, order_id, amount, status)
+            VALUES (%s, %s, %s, 40, 'pending')
+            ON CONFLICT DO NOTHING
+        """, (earning_id, partner_id, order_id))
+
+        # Update partner delivery count
+        cur.execute("""
+            UPDATE delivery_partners
+            SET delivery_count = COALESCE(delivery_count, 0) + 1
+            WHERE id = %s
+        """, (partner_id,))
+
+        conn.commit()
+        conn.close()
+        return {"success": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/partners/{partner_id}/online")
+def set_partner_online(partner_id: str, body: dict):
+    """Partner goes online/offline"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        is_online = body.get("is_online", False)
+        cur.execute("""
+            UPDATE delivery_partners SET is_online = %s WHERE id = %s
+        """, (is_online, partner_id))
+        conn.commit()
+        conn.close()
+        return {"success": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/partner/active-order/{partner_id}")
+def get_active_order(partner_id: str):
+    """Get the current active delivery for a partner"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT o.*, s.name as store_name, s.phone as store_phone,
+                   s.address as store_address, s.area as store_area
+            FROM orders o
+            LEFT JOIN stores s ON o.store_id = s.id
+            WHERE o.assigned_partner_id = %s
+            AND o.current_status IN ('packed', 'out_for_delivery')
+            ORDER BY o.created_at DESC LIMIT 1
+        """, (partner_id,))
+        order = cur.fetchone()
+        conn.close()
+        if not order:
+            return {"order": None}
+        return {"order": dict(order)}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.post("/partner/payment-details")
 def save_partner_payment_details(body: PartnerPaymentDetails):
     try:
