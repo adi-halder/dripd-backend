@@ -2253,11 +2253,7 @@ def approve_store_post(store_id: str):
     try:
         conn = get_db()
         cur = conn.cursor()
-        # Try with is_approved column first, fall back without it
-        try:
-            cur.execute("UPDATE stores SET status = 'active', is_approved = TRUE, is_open = TRUE WHERE id = %s", (store_id,))
-        except Exception:
-            cur.execute("UPDATE stores SET status = 'active', is_open = TRUE WHERE id = %s", (store_id,))
+        cur.execute("UPDATE stores SET status = 'active', is_open = TRUE WHERE id = %s", (store_id,))
         conn.commit()
         conn.close()
         return {"success": True}
