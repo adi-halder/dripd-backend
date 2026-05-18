@@ -83,9 +83,9 @@ class Order(BaseModel):
         return int(self.total_amount)
 
 class OrderStatusUpdate(BaseModel):
-    order_id: str
+    order_id: Optional[str] = None
     status: str
-    updated_by: str
+    updated_by: Optional[str] = 'system'
     updated_by_id: Optional[str] = None
     note: Optional[str] = None
 
