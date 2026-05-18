@@ -70,13 +70,17 @@ class UpdatePhoto(BaseModel):
 class Order(BaseModel):
     customer_name: str
     customer_phone: str
-    customer_address: str
+    customer_address: str = 'Address not provided'
     store_id: str
     product_id: str
-    size: str
-    total_amount: int
+    size: str = 'M'
+    total_amount: float
     payment_id: Optional[str] = None
     items: Optional[list] = None
+
+    @property
+    def total_amount_int(self):
+        return int(self.total_amount)
 
 class OrderStatusUpdate(BaseModel):
     order_id: str
@@ -562,7 +566,7 @@ def place_order(order: Order):
             order_id, order.customer_name, order.customer_phone,
             order.customer_address or 'Address not provided',
             order.store_id, store["name"], order.product_id, product["name"],
-            product["price"], order.size, order.total_amount, "confirmed",
+            product["price"], order.size, int(order.total_amount), "confirmed",
             False, order.payment_id, None, None, False,
             store.get("delivery_time", "~30 min"), "confirmed"
         ))
