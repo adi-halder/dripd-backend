@@ -634,7 +634,7 @@ def get_orders(status: str = None, store_id: str = None):
         if status == "packed":
             cur.execute("""
                 SELECT o.*, s.name as store_name, s.area as store_area,
-                       s.address as store_address, s.phone as store_phone
+                       s.area as store_address, s.phone as store_phone
                 FROM orders o
                 LEFT JOIN stores s ON o.store_id = s.id
                 WHERE o.current_status = 'packed'
