@@ -159,7 +159,7 @@ def create_invoice(cur, order, order_id: str, store_name: str, product_name: str
             delivery_fee, platform_fee, try_and_buy_fee, total_amount, payment_id, is_try_and_buy)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (
-        f"INV{uuid.uuid4().hex[:8]}", invoice_number, order_id,
+        str(uuid.uuid4()), invoice_number, order_id,
         order.customer_name, order.customer_phone, order.customer_address,
         store_name, order.store_id, product_name, product_price, order.size,
         40, 5, 0, order.total_amount, order.payment_id, False
@@ -175,7 +175,7 @@ def create_commission(cur, order_id: str, store_id: str, order_amount: int):
             commission_amount, store_payout, status)
         VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending')
         ON CONFLICT (order_id) DO NOTHING
-    """, (f"COM{uuid.uuid4().hex[:8]}", order_id, store_id, order_amount,
+    """, (str(uuid.uuid4()), order_id, store_id, order_amount,
           commission_rate, commission_amount, store_payout))
     return commission_amount, store_payout
 
@@ -579,7 +579,7 @@ def place_order(order: Order):
                         size, price, photo, decision)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending')
                     ON CONFLICT DO NOTHING
-                """, (f"OI{uuid.uuid4().hex[:8]}", order_id,
+                """, (str(uuid.uuid4()), order_id,
                       item.get("product_id", order.product_id),
                       item.get("product_name", product["name"]),
                       item.get("size", order.size),
@@ -589,7 +589,7 @@ def place_order(order: Order):
         cur.execute("""
             INSERT INTO order_status_history (id, order_id, status, updated_by, note)
             VALUES (%s, %s, 'confirmed', 'system', 'Order placed successfully')
-        """, (f"SH{uuid.uuid4().hex[:8]}", order_id))
+        """, (str(uuid.uuid4()), order_id))
 
         invoice_number = create_invoice(cur, order, order_id, store["name"],
                                        product["name"], product["price"])
@@ -606,7 +606,7 @@ def place_order(order: Order):
                 cgst_amount, sgst_amount, total_tax, total_amount)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (order_id) DO NOTHING
-        """, (f"GST{uuid.uuid4().hex[:8]}", gst_invoice_number, order_id,
+        """, (str(uuid.uuid4()), gst_invoice_number, order_id,
               order.store_id, order.customer_name, order.customer_phone,
               store["name"], taxable, tax//2, tax//2, tax, order.total_amount))
 
@@ -728,7 +728,7 @@ def update_order_status(order_id: str, body: OrderStatusUpdate):
         cur.execute("""
             INSERT INTO order_status_history (id, order_id, status, updated_by, updated_by_id, note)
             VALUES (%s, %s, %s, %s, %s, %s)
-        """, (f"SH{uuid.uuid4().hex[:8]}", order_id, body.status,
+        """, (str(uuid.uuid4()), order_id, body.status,
               body.updated_by, body.updated_by_id, body.note))
         conn.commit()
         conn.close()
@@ -803,7 +803,7 @@ def assign_partner_to_order(order_id: str, body: dict):
         cur.execute("""
             INSERT INTO order_status_history (id, order_id, status, updated_by, note)
             VALUES (%s, %s, 'out_for_delivery', %s, 'Partner assigned')
-        """, (f"SH{uuid.uuid4().hex[:8]}", order_id, partner_id))
+        """, (str(uuid.uuid4()), order_id, partner_id))
         conn.commit()
         conn.close()
         return {"success": True}
@@ -828,13 +828,13 @@ async def complete_order(order_id: str, body: dict):
         cur.execute("""
             INSERT INTO order_status_history (id, order_id, status, updated_by, note)
             VALUES (%s, %s, 'delivered', %s, 'Delivered by partner')
-        """, (f"SH{uuid.uuid4().hex[:8]}", order_id, partner_id or 'partner'))
+        """, (str(uuid.uuid4()), order_id, partner_id or 'partner'))
         if partner_id:
             partner_earn = 60
             cur.execute("""
                 INSERT INTO partner_earnings (id, partner_id, order_id, amount, status)
                 VALUES (%s, %s, %s, %s, 'pending') ON CONFLICT DO NOTHING
-            """, (f"PE{uuid.uuid4().hex[:8]}", partner_id, order_id, partner_earn))
+            """, (str(uuid.uuid4()), partner_id, order_id, partner_earn))
             cur.execute("""
                 UPDATE delivery_partners
                 SET delivery_count = COALESCE(delivery_count, 0) + 1,
@@ -881,7 +881,7 @@ def rate_order(order_id: str, body: RatingRequest):
             INSERT INTO ratings (rating_id, order_id, product_id, store_id,
                 product_rating, store_rating, review, customer)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (f"R{uuid.uuid4().hex[:8]}", order_id, order["product_id"],
+        """, (str(uuid.uuid4()), order_id, order["product_id"],
               order["store_id"], body.product_rating, body.store_rating,
               body.review, order["customer"]))
         cur.execute("UPDATE orders SET is_rated = TRUE WHERE order_id = %s", (order_id,))
@@ -1114,7 +1114,7 @@ def request_payout(body: PayoutRequest):
             (id, request_id, requester_type, requester_id, requester_name,
              amount, payment_method, payment_details, status)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending')
-        """, (f"PR{uuid.uuid4().hex[:8]}", request_id, body.requester_type,
+        """, (str(uuid.uuid4()), request_id, body.requester_type,
               body.requester_id, body.requester_name, body.amount,
               body.payment_method, json.dumps(body.payment_details)))
         conn.commit()
