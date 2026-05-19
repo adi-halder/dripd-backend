@@ -214,13 +214,13 @@ async def send_otp(request: Request):
                     "route": "q",
                     "numbers": clean
                 },
-                timeout=10
+                timeout=15
             )
             res = r.json()
             if res.get("return") == True:
-                return {"success": True, "message": "OTP sent to your phone", "otp": otp}
+                return {"success": True, "message": "OTP sent to your phone"}
             else:
-                return {"success": True, "message": "OTP sent to your number", "otp": otp}
+                return {"success": True, "message": "OTP sent", "otp": otp}
     except Exception:
         return {"success": True, "message": "OTP sent", "otp": otp}
 
