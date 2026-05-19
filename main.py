@@ -209,8 +209,9 @@ async def send_otp(request: Request):
                 "https://www.fast2sms.com/dev/bulkV2",
                 params={
                     "authorization": FAST2SMS_API_KEY,
-                    "variables_values": otp,
-                    "route": "otp",
+                    "message": f"{otp} is your Dripd verification code. Valid for 10 minutes.",
+                    "language": "english",
+                    "route": "q",
                     "numbers": clean
                 },
                 timeout=10
