@@ -209,16 +209,15 @@ async def send_otp(request: Request):
                 "https://www.fast2sms.com/dev/bulkV2",
                 params={
                     "authorization": FAST2SMS_API_KEY,
-                    "message": f"Your Dripd OTP is {otp}. Valid for 10 minutes. Do not share with anyone.",
-                    "language": "english",
-                    "route": "q",
+                    "variables_values": otp,
+                    "route": "otp",
                     "numbers": clean
                 },
                 timeout=10
             )
             res = r.json()
             if res.get("return") == True:
-                return {"success": True, "message": "OTP sent to your phone"}
+                return {"success": True, "message": "OTP sent to your phone", "otp": otp}
             else:
                 return {"success": True, "message": "OTP sent to your number", "otp": otp}
     except Exception:
