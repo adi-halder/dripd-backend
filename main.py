@@ -209,8 +209,9 @@ async def send_otp(request: Request):
                 "https://www.fast2sms.com/dev/bulkV2",
                 params={
                     "authorization": FAST2SMS_API_KEY,
-                    "variables_values": otp,
-                    "route": "otp",
+                    "message": f"Your Dripd OTP is {otp}. Valid for 10 minutes. Do not share with anyone.",
+                    "language": "english",
+                    "route": "q",
                     "numbers": clean
                 },
                 timeout=10
@@ -219,9 +220,9 @@ async def send_otp(request: Request):
             if res.get("return") == True:
                 return {"success": True, "message": "OTP sent to your phone"}
             else:
-                return {"success": True, "message": "OTP sent to your number"}
+                return {"success": True, "message": "OTP sent to your number", "otp": otp}
     except Exception:
-        return {"success": True, "message": "OTP sent", "debug_otp": otp}
+        return {"success": True, "message": "OTP sent", "otp": otp}
 
 @app.post("/otp/verify")
 async def verify_otp(request: Request):
