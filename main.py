@@ -219,7 +219,7 @@ async def send_otp(request: Request):
             if res.get("return") == True:
                 return {"success": True, "message": "OTP sent to your phone"}
             else:
-                return {"success": True, "message": "OTP sent", "debug_otp": otp}
+                return {"success": True, "message": "OTP sent to your number"}
     except Exception:
         return {"success": True, "message": "OTP sent", "debug_otp": otp}
 
