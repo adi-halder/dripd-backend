@@ -167,7 +167,7 @@ def create_invoice(cur, order, order_id: str, store_name: str, product_name: str
     return invoice_number
 
 def create_commission(cur, order_id: str, store_id: str, order_amount: int):
-    commission_rate = 0.09
+    commission_rate = 0.20
     commission_amount = int(order_amount * commission_rate)
     store_payout = order_amount - commission_amount
     cur.execute("""
