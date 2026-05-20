@@ -1097,7 +1097,7 @@ def get_store_commissions(store_id: str):
                 "total_commission": summary["total_commission"] or 0,
                 "total_payout": summary["total_payout"] or 0,
                 "order_count": summary["order_count"] or 0,
-                "commission_rate": "9%"
+                "commission_rate": "20%"
             }
         }
     except Exception as e:
@@ -1274,7 +1274,7 @@ def get_revenue():
         cur.execute("""
             SELECT COUNT(*) as total_orders,
                    SUM(amount) as gmv,
-                   SUM(amount) * 0.09 as commission
+                   SUM(amount) * 0.20 as commission
             FROM orders
         """)
         revenue = cur.fetchone()
