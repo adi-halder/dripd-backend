@@ -1297,6 +1297,7 @@ async def create_payment_order(body: dict):
                 timeout=15
             )
             d = r.json()
+            print(f"Cashfree response: {d}")
             if not d.get("payment_session_id"):
                 return {"success": False, "error": d.get("message", "Cashfree error"), "details": d}
             return {
