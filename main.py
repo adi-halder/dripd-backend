@@ -22,8 +22,8 @@ app.add_middleware(
 )
 
 # ============ CONFIG ============
-RAZORPAY_KEY_ID = "rzp_test_Smd5WAS1quRuYv"
-RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_SECRET", "")
+CASHFREE_APP_ID = os.environ.get("CASHFREE_APP_ID", "")
+CASHFREE_SECRET_KEY = os.environ.get("CASHFREE_SECRET_KEY", "")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 FAST2SMS_API_KEY = os.environ.get("FAST2SMS_KEY", "ct7FUai0fNvT3hAzueIYMHQJsLkOqEb4dW89yxGnXPR5SorjVZ5ytRNE6JxYkBoO4UPAr3c8pTSGhw9b")
 otp_store = {}
@@ -136,12 +136,12 @@ class TryBuyComplete(BaseModel):
     partner_id: Optional[str] = None
 
 # ============ RAZORPAY ============
-async def process_razorpay_refund(payment_id: str, amount: int, notes: str):
+async def process_cashfree_refund(payment_id: str, amount: int, notes: str):
     try:
-        credentials = base64.b64encode(f"{RAZORPAY_KEY_ID}:{RAZORPAY_KEY_SECRET}".encode()).decode()
+        credentials = base64.b64encode(f"{CASHFREE_APP_ID}:{CASHFREE_SECRET_KEY}".encode()).decode()
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"https://api.razorpay.com/v1/payments/{payment_id}/refund",
+                f"https://api.cashfree.com/pg/orders/{payment_id}/refunds",
                 headers={"Authorization": f"Basic {credentials}", "Content-Type": "application/json"},
                 json={"amount": amount * 100, "notes": {"reason": notes}}
             )
@@ -1265,6 +1265,46 @@ def reject_partner(partner_id: str):
         return {"success": True, "message": "Partner rejected."}
     except Exception as e:
         return {"error": str(e)}
+
+
+@app.post("/create-payment-order")
+async def create_payment_order(body: dict):
+    amount = body.get("amount", 0)
+    order_id = body.get("order_id", f"order_{uuid.uuid4().hex[:8]}")
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                "https://api.cashfree.com/pg/orders",
+                headers={
+                    "x-client-id": CASHFREE_APP_ID,
+                    "x-client-secret": CASHFREE_SECRET_KEY,
+                    "x-api-version": "2023-08-01",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "order_id": order_id,
+                    "order_amount": amount,
+                    "order_currency": "INR",
+                    "customer_details": {
+                        "customer_id": f"cust_{order_id}",
+                        "customer_phone": body.get("phone", "9999999999"),
+                        "customer_email": body.get("email", "customer@getdripd.in")
+                    },
+                    "order_meta": {
+                        "return_url": "https://getdripd.in?order_id={order_id}"
+                    }
+                },
+                timeout=15
+            )
+            d = r.json()
+            return {
+                "success": True,
+                "payment_session_id": d.get("payment_session_id"),
+                "cf_order_id": d.get("cf_order_id"),
+                "cashfree_app_id": CASHFREE_APP_ID
+            }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 @app.get("/admin/revenue")
 def get_revenue():
