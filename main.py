@@ -1291,12 +1291,14 @@ async def create_payment_order(body: dict):
                         "customer_email": body.get("email", "customer@getdripd.in")
                     },
                     "order_meta": {
-                        "return_url": "https://getdripd.in?order_id={order_id}"
+                        "return_url": f"https://getdripd.in?order_id={order_id}"
                     }
                 },
                 timeout=15
             )
             d = r.json()
+            if not d.get("payment_session_id"):
+                return {"success": False, "error": d.get("message", "Cashfree error"), "details": d}
             return {
                 "success": True,
                 "payment_session_id": d.get("payment_session_id"),
