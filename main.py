@@ -23,6 +23,14 @@ app.add_middleware(
 
 # ============ CONFIG ============
 CASHFREE_APP_ID = os.environ.get("CASHFREE_APP_ID", "")
+
+GOOGLE_MAPS_KEY = os.environ.get("GOOGLE_MAPS_KEY", "")
+
+@app.get("/config/maps-key")
+def get_maps_key():
+    return {"key": GOOGLE_MAPS_KEY}
+
+
 CASHFREE_SECRET_KEY = os.environ.get("CASHFREE_SECRET_KEY", "")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 FAST2SMS_API_KEY = os.environ.get("FAST2SMS_KEY", "ct7FUai0fNvT3hAzueIYMHQJsLkOqEb4dW89yxGnXPR5SorjVZ5ytRNE6JxYkBoO4UPAr3c8pTSGhw9b")
