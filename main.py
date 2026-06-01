@@ -1309,6 +1309,36 @@ async def create_payment_order(body: dict):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
+@app.post("/verify-payment")
+async def verify_payment(body: dict):
+    order_id = body.get("order_id")
+    if not order_id:
+        return {"success": False, "paid": False}
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(
+                f"https://api.cashfree.com/pg/orders/{order_id}/payments",
+                headers={
+                    "x-client-id": CASHFREE_APP_ID,
+                    "x-client-secret": CASHFREE_SECRET_KEY,
+                    "x-api-version": "2023-08-01"
+                },
+                timeout=10
+            )
+            d = r.json()
+            print(f"Payment verify response: {d}")
+            # Check if any payment is SUCCESS
+            if isinstance(d, list):
+                paid = any(p.get("payment_status") == "SUCCESS" for p in d)
+                txn_id = next((p.get("cf_payment_id") for p in d if p.get("payment_status") == "SUCCESS"), None)
+            else:
+                paid = d.get("payment_status") == "SUCCESS"
+                txn_id = d.get("cf_payment_id")
+            return {"success": True, "paid": paid, "txn_id": txn_id}
+    except Exception as e:
+        return {"success": False, "paid": False, "error": str(e)}
+
 @app.get("/admin/revenue")
 def get_revenue():
     try:
