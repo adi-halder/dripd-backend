@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime, timedelta
+from datetime import datetime
 import httpx
 import base64
 import os
@@ -10,8 +10,6 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import uuid
 import json
-import random
-import re
 
 app = FastAPI(title="Drip'd API", version="1.0")
 
@@ -26,10 +24,27 @@ app.add_middleware(
 CASHFREE_APP_ID = os.environ.get("CASHFREE_APP_ID", "")
 
 GOOGLE_MAPS_KEY = os.environ.get("GOOGLE_MAPS_KEY", "")
+FIREBASE_API_KEY = os.environ.get("FIREBASE_API_KEY", "")
+FIREBASE_APP_ID = os.environ.get("FIREBASE_APP_ID", "")
+FIREBASE_AUTH_DOMAIN = os.environ.get("FIREBASE_AUTH_DOMAIN", "")
+FIREBASE_MESSAGING_SENDER_ID = os.environ.get("FIREBASE_MESSAGING_SENDER_ID", "")
+FIREBASE_PROJECT_ID = os.environ.get("FIREBASE_PROJECT_ID", "")
+FIREBASE_STORAGE_BUCKET = os.environ.get("FIREBASE_STORAGE_BUCKET", "")
 
 @app.get("/config/maps-key")
 def get_maps_key():
     return {"key": GOOGLE_MAPS_KEY}
+
+@app.get("/config/firebase")
+def get_firebase_config():
+    return {
+        "apiKey": FIREBASE_API_KEY,
+        "appId": FIREBASE_APP_ID,
+        "authDomain": FIREBASE_AUTH_DOMAIN,
+        "messagingSenderId": FIREBASE_MESSAGING_SENDER_ID,
+        "projectId": FIREBASE_PROJECT_ID,
+        "storageBucket": FIREBASE_STORAGE_BUCKET,
+    }
 
 @app.get("/location/reverse")
 async def reverse_location(lat: float, lng: float):
@@ -86,9 +101,6 @@ async def search_location(q: str):
 
 CASHFREE_SECRET_KEY = os.environ.get("CASHFREE_SECRET_KEY", "")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
-FAST2SMS_API_KEY = os.environ.get("FAST2SMS_KEY", "")
-FAST2SMS_ROUTE = os.environ.get("FAST2SMS_ROUTE", "otp")
-otp_store = {}
 
 # ============ DATABASE ============
 def get_db():
@@ -214,15 +226,6 @@ async def process_cashfree_refund(payment_id: str, amount: int, notes: str):
         return {"success": False, "error": str(e)}
 
 # ============ HELPERS ============
-def normalize_indian_phone(phone: str) -> str:
-    digits = re.sub(r"\D", "", phone or "")
-    if digits.startswith("91") and len(digits) == 12:
-        digits = digits[2:]
-    return digits
-
-def otp_store_key(phone: str) -> str:
-    return normalize_indian_phone(phone) or (phone or "").strip()
-
 def short_location_label(address: dict, fallback: str = "Location found") -> str:
     if not address:
         return fallback
@@ -332,75 +335,11 @@ def home():
 # ============ OTP ============
 @app.post("/otp/send")
 async def send_otp(request: Request):
-    data = await request.json()
-    phone = data.get("phone", "")
-    clean = normalize_indian_phone(phone)
-    if len(clean) != 10:
-        return {"success": False, "error": "Enter a valid 10-digit Indian phone number"}
-    if not FAST2SMS_API_KEY:
-        return {"success": False, "error": "FAST2SMS_KEY is not configured on the server"}
-    otp = str(random.randint(100000, 999999))
-    key = otp_store_key(phone)
-    otp_store[key] = {
-        "otp": otp,
-        "expires": datetime.now() + timedelta(minutes=10),
-        "attempts": 0
-    }
-    try:
-        params = {
-            "authorization": FAST2SMS_API_KEY,
-            "route": FAST2SMS_ROUTE,
-            "numbers": clean
-        }
-        if FAST2SMS_ROUTE == "otp":
-            params["variables_values"] = otp
-        else:
-            params.update({
-                "message": f"{otp} is your Dripd verification code. Valid for 10 minutes.",
-                "language": "english"
-            })
-        async with httpx.AsyncClient() as client:
-            r = await client.get(
-                "https://www.fast2sms.com/dev/bulkV2",
-                params=params,
-                timeout=15
-            )
-            try:
-                res = r.json()
-            except Exception:
-                res = {"message": r.text}
-            if r.status_code < 400 and res.get("return") is True:
-                return {"success": True, "message": "OTP sent to your phone"}
-            otp_store.pop(key, None)
-            return {
-                "success": False,
-                "error": res.get("message") or res.get("error") or "Fast2SMS could not send this OTP",
-                "details": res
-            }
-    except Exception as e:
-        otp_store.pop(key, None)
-        return {"success": False, "error": f"Fast2SMS request failed: {e}"}
+    return {"success": False, "error": "OTP is handled by Firebase Phone Auth on the client."}
 
 @app.post("/otp/verify")
 async def verify_otp(request: Request):
-    data = await request.json()
-    phone = data.get("phone", "")
-    otp = data.get("otp", "")
-    key = otp_store_key(phone)
-    stored = otp_store.get(key)
-    if not stored:
-        return {"success": False, "error": "OTP expired. Request a new one."}
-    if datetime.now() > stored["expires"]:
-        del otp_store[key]
-        return {"success": False, "error": "OTP expired. Request a new one."}
-    stored["attempts"] += 1
-    if stored["attempts"] > 5:
-        del otp_store[key]
-        return {"success": False, "error": "Too many attempts. Request a new OTP."}
-    if stored["otp"] != otp:
-        return {"success": False, "error": "Incorrect OTP. Try again."}
-    del otp_store[key]
-    return {"success": True, "message": "Phone verified!"}
+    return {"success": False, "error": "OTP is verified by Firebase Phone Auth on the client."}
 
 # ============ CUSTOMERS ============
 @app.post("/customers/register")

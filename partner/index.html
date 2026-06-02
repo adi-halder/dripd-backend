@@ -657,6 +657,7 @@ let currentOrderState = 'new';
 
 let deliveryHistory = [], todayEarnings = 0, todayDeliveries = 0;
 let vehicleType = 'Bike', currentOrderData = null;
+let firebaseReady = false, firebaseConfirmation = null, firebaseOtpPhone = null;
 
 try { partner = JSON.parse(localStorage.getItem('dd_partner') || 'null'); } catch(e) {}
 try { deliveryHistory = JSON.parse(localStorage.getItem('dd_history') || '[]'); } catch(e) {}
@@ -694,6 +695,37 @@ function gotoStep(id) {
   document.getElementById(id).classList.add('on');
 }
 
+function normalizeFirebasePhone(ph) {
+  let digits = (ph || '').replace(/\D/g, '');
+  if (digits.startsWith('91') && digits.length === 12) digits = digits.slice(2);
+  return digits.length === 10 ? '+91' + digits : ph;
+}
+
+async function loadFirebaseAuth() {
+  if (firebaseReady) return true;
+  const cfg = await fetch(`${API}/config/firebase`).then(r => r.json());
+  if (!cfg.apiKey || !cfg.authDomain || !cfg.projectId || !cfg.appId) throw new Error('Firebase is not configured');
+  if (!window.firebase) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js';
+      s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
+    });
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js';
+      s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
+    });
+  }
+  if (!firebase.apps.length) firebase.initializeApp(cfg);
+  if (!window.firebaseRecaptcha) {
+    window.firebaseRecaptcha = new firebase.auth.RecaptchaVerifier('firebase-recaptcha', { size: 'invisible' });
+    await window.firebaseRecaptcha.render();
+  }
+  firebaseReady = true;
+  return true;
+}
+
 function selectVehicle(type) {
   vehicleType = type;
   document.querySelectorAll('.vehicle-opt').forEach(v => v.classList.remove('on'));
@@ -707,16 +739,13 @@ async function sendOTP() {
   document.getElementById('inp-otp').value = '';
   const btn = event.target; btn.textContent = 'SENDING...'; btn.disabled = true;
   try {
-    const otpRes = await fetch(`${API}/otp/send`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone})});
-    const otpData = await otpRes.json();
-    if (!otpData.success) {
-      toast(otpData.error || 'Could not send OTP');
-      btn.textContent = 'GET OTP'; btn.disabled = false;
-      return;
-    }
-    toast('OTP sent to ' + phone);
+    await loadFirebaseAuth();
+    firebaseOtpPhone = normalizeFirebasePhone(phone);
+    firebaseConfirmation = await firebase.auth().signInWithPhoneNumber(firebaseOtpPhone, window.firebaseRecaptcha);
+    toast('OTP sent to ' + firebaseOtpPhone);
   } catch(e) {
-    toast('Could not send OTP. Check your connection.');
+    if (window.firebaseRecaptcha?.clear) { window.firebaseRecaptcha.clear(); window.firebaseRecaptcha = null; firebaseReady = false; }
+    toast(e.message || 'Could not send OTP. Check Firebase setup.');
     btn.textContent = 'GET OTP'; btn.disabled = false;
     return;
   }
@@ -731,10 +760,9 @@ async function verifyOTP() {
   const otp = document.getElementById('inp-otp').value.trim();
   if (otp.length < 6) { toast('Enter the 6-digit OTP'); return; }
   try {
-    const vr = await fetch(`${API}/otp/verify`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,otp})});
-    const vd = await vr.json();
-    if (!vd.success) { toast(vd.error || 'Incorrect OTP'); return; }
-  } catch(e) { toast('Could not verify OTP. Try again.'); return; }
+    if (!firebaseConfirmation) { toast('Request a new OTP first'); return; }
+    await firebaseConfirmation.confirm(otp);
+  } catch(e) { toast(e.message || 'Incorrect OTP'); return; }
   try {
     const r = await fetch(`${API}/partners/${phone}`);
     const d = await r.json();
@@ -1129,5 +1157,6 @@ function partnerDocUploaded(input, statusId, checkId) {
 }
 
 </script>
+<div id="firebase-recaptcha"></div>
 </body>
 </html>

@@ -1161,7 +1161,8 @@ const API = 'https://web-production-2dcf58.up.railway.app';
 const CLOUD = 'ddazlyx1g';
 const PRESET = 'dripd_products';
 
-let store = null, phone = null, otpLocal = null, authMode = 'reg', tncOk = false, tnc2Ok = false;
+let store = null, phone = null, authMode = 'reg', tncOk = false, tnc2Ok = false;
+let firebaseReady = false, firebaseConfirmation = null, firebaseOtpPhone = null;
 let resendTimer = null, selSizes = [], uploadedPhoto = null;
 let allOrders = [], chatOrderId = null, chatInterval = null;
 let selCats = [], regLat = null, regLng = null;
@@ -1488,12 +1489,7 @@ function showOTPScreen(ph) {
   document.getElementById('frm-log').style.display = 'none';
   document.getElementById('frm-otp').style.display = 'block';
   document.getElementById('otp-sent-to').textContent = 'OTP sent to ' + ph;
-  if (otpLocal) {
-    document.getElementById('otp-hint-code').textContent = otpLocal;
-    document.getElementById('otp-hint-box').style.display = 'block';
-  } else {
-    document.getElementById('otp-hint-box').style.display = 'none';
-  }
+  document.getElementById('otp-hint-box').style.display = 'none';
   ['o1','o2','o3','o4','o5','o6'].forEach(i => {
     document.getElementById(i).value = '';
     document.getElementById(i).classList.remove('filled');
@@ -1518,13 +1514,37 @@ function startResend() {
   }, 1000);
 }
 
+async function loadFirebaseAuth() {
+  if (firebaseReady) return true;
+  const cfg = await fetch(API + '/config/firebase').then(r => r.json());
+  if (!cfg.apiKey || !cfg.authDomain || !cfg.projectId || !cfg.appId) throw new Error('Firebase is not configured');
+  if (!window.firebase) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js';
+      s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
+    });
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js';
+      s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
+    });
+  }
+  if (!firebase.apps.length) firebase.initializeApp(cfg);
+  if (!window.firebaseRecaptcha) {
+    window.firebaseRecaptcha = new firebase.auth.RecaptchaVerifier('firebase-recaptcha', { size: 'invisible' });
+    await window.firebaseRecaptcha.render();
+  }
+  firebaseReady = true;
+  return true;
+}
+
 async function sendOTPApi(ph) {
   let cleanPh = ph.replace(/\s/g, '').replace('+91', '');
   if (cleanPh.length === 10) cleanPh = '+91' + cleanPh;
-  const r = await fetch(API + '/otp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: cleanPh }) });
-  const d = await r.json();
-  if (!d.success) throw new Error(d.error || 'Could not send OTP');
-  otpLocal = null;
+  await loadFirebaseAuth();
+  firebaseOtpPhone = cleanPh;
+  firebaseConfirmation = await firebase.auth().signInWithPhoneNumber(cleanPh, window.firebaseRecaptcha);
   phone = cleanPh;
 }
 
@@ -1577,11 +1597,10 @@ async function verifyOTP() {
   btn.disabled = true; btn.textContent = 'Verifying...';
 
   try {
-    const vr = await fetch(API + '/otp/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, otp: entered }) });
-    const vd = await vr.json();
-    if (!vd.success) { showMsg('st-otp', vd.error || 'Incorrect OTP','err'); btn.disabled = false; btn.textContent = 'VERIFY & ENTER'; return; }
+    if (!firebaseConfirmation) { showMsg('st-otp','Request a new OTP first','err'); btn.disabled = false; btn.textContent = 'VERIFY & ENTER'; return; }
+    await firebaseConfirmation.confirm(entered);
   } catch(e) {
-    showMsg('st-otp','Could not verify OTP. Try again.','err'); btn.disabled = false; btn.textContent = 'VERIFY & ENTER'; return;
+    showMsg('st-otp', e.message || 'Incorrect OTP','err'); btn.disabled = false; btn.textContent = 'VERIFY & ENTER'; return;
   }
 
   if (authMode === 'reg') {
@@ -2208,5 +2227,6 @@ function closePanel(id) {
 }
 
 </script>
+<div id="firebase-recaptcha"></div>
 </body>
 </html>
