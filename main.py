@@ -239,6 +239,17 @@ def short_location_label(address: dict, fallback: str = "Location found") -> str
             parts.append(part)
     return ", ".join(parts[:3]) or fallback
 
+def full_location_address(address: dict, fallback: str = "Location found") -> str:
+    if not address:
+        return fallback
+    keys = ("house_number", "road", "suburb", "neighbourhood", "quarter", "city", "town", "state", "postcode")
+    parts = []
+    for key in keys:
+        part = address.get(key)
+        if part and part not in parts:
+            parts.append(part)
+    return ", ".join(parts) or fallback
+
 async def reverse_geocode_label(lat: float, lng: float) -> dict:
     if GOOGLE_MAPS_KEY:
         async with httpx.AsyncClient() as client:
@@ -260,7 +271,12 @@ async def reverse_geocode_label(lat: float, lng: float) -> dict:
             city = pick("locality", "administrative_area_level_3")
             state = pick("administrative_area_level_1")
             label = ", ".join([p for p in (area, city, state) if p])
-            return {"success": True, "label": label or result.get("formatted_address", "Location found"), "address": result.get("formatted_address", "")}
+            formatted = result.get("formatted_address", "")
+            return {
+                "success": True,
+                "label": label or formatted or "Location found",
+                "address": formatted or label or "Location found"
+            }
     async with httpx.AsyncClient(headers={"User-Agent": "Dripd/1.0 support@getdripd.in"}) as client:
         r = await client.get(
             "https://nominatim.openstreetmap.org/reverse",
@@ -269,7 +285,13 @@ async def reverse_geocode_label(lat: float, lng: float) -> dict:
         )
     data = r.json()
     address = data.get("address", {})
-    return {"success": True, "label": short_location_label(address), "address": data.get("display_name", ""), "raw": data}
+    display = data.get("display_name", "")
+    return {
+        "success": True,
+        "label": short_location_label(address, display or "Location found"),
+        "address": display or full_location_address(address),
+        "raw": data
+    }
 
 def create_invoice(cur, order, order_id: str, store_name: str, product_name: str, product_price: int):
     invoice_number = f"INV-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"

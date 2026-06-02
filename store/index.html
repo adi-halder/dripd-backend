@@ -1331,13 +1331,19 @@ function docUploaded(inp, statusId, checkId) {
   document.getElementById(checkId).classList.add('on');
 }
 
-async function getLocationLabel(lat, lng) {
+async function getLocationDetails(lat, lng) {
   try {
     const r = await fetch(`${API}/location/reverse?lat=${lat}&lng=${lng}`);
     const d = await r.json();
-    return d.success ? d.label : 'Selected location';
+    if (d.success) {
+      return {
+        label: d.label || d.address || 'Selected location',
+        address: d.address || d.label || 'Selected location'
+      };
+    }
+    return { label: 'Selected location', address: 'Selected location' };
   } catch(e) {
-    return 'Selected location';
+    return { label: 'Selected location', address: 'Selected location' };
   }
 }
 
@@ -1417,24 +1423,26 @@ function drawLocationMap(mode, lat, lng, label) {
   }
 }
 
-function setStoreLocationFields(mode, lat, lng, label) {
-  const cleanLabel = label || 'Selected location';
+function setStoreLocationFields(mode, lat, lng, details) {
+  const data = typeof details === 'string' ? { label: details, address: details } : (details || {});
+  const cleanLabel = data.label || data.address || 'Selected location';
+  const displayAddress = data.address || cleanLabel;
   if (mode === 'reg') {
     document.getElementById('r-lat').value = lat;
     document.getElementById('r-lng').value = lng;
     regLat = parseFloat(lat); regLng = parseFloat(lng);
-    selectedRegLocation = { lat: regLat, lng: regLng, label: cleanLabel };
+    selectedRegLocation = { lat: regLat, lng: regLng, label: cleanLabel, address: displayAddress };
     document.getElementById('reg-map-preview').classList.add('has-loc');
     document.getElementById('reg-loc-txt').style.display = 'block';
-    document.getElementById('reg-loc-txt').textContent = cleanLabel;
-    drawLocationMap('reg', lat, lng, cleanLabel);
+    document.getElementById('reg-loc-txt').textContent = displayAddress;
+    drawLocationMap('reg', lat, lng, displayAddress);
   } else {
     document.getElementById('lat-inp').value = lat;
     document.getElementById('lng-inp').value = lng;
-    selectedProfileLocation = { lat: parseFloat(lat), lng: parseFloat(lng), label: cleanLabel };
-    document.getElementById('loc-coords').textContent = cleanLabel;
+    selectedProfileLocation = { lat: parseFloat(lat), lng: parseFloat(lng), label: cleanLabel, address: displayAddress };
+    document.getElementById('loc-coords').textContent = displayAddress;
     document.getElementById('loc-coords').style.display = 'block';
-    drawLocationMap('profile', lat, lng, cleanLabel);
+    drawLocationMap('profile', lat, lng, displayAddress);
   }
 }
 
@@ -1446,8 +1454,8 @@ function detectRegLocation() {
   navigator.geolocation.getCurrentPosition(async pos => {
     const lat = pos.coords.latitude.toFixed(6);
     const lng = pos.coords.longitude.toFixed(6);
-    const label = await getLocationLabel(lat, lng);
-    setStoreLocationFields('reg', lat, lng, label);
+    const details = await getLocationDetails(lat, lng);
+    setStoreLocationFields('reg', lat, lng, details);
     btn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> Location Detected';
     toast('Location detected successfully!');
   }, () => {
@@ -1580,7 +1588,7 @@ async function verifyOTP() {
     try {
       const nm = document.getElementById('rn').value.trim();
       const own = document.getElementById('ro').value.trim();
-      const area = document.getElementById('reg-loc-txt').textContent || document.getElementById('ra').value.trim();
+      const area = selectedRegLocation?.label || document.getElementById('reg-loc-txt').textContent || document.getElementById('ra').value.trim();
       const address = document.getElementById('r-address').value.trim();
       const btype = document.getElementById('r-btype').value;
       const openT = document.getElementById('r-open').value;
@@ -2026,8 +2034,8 @@ function detectLocation() {
   navigator.geolocation.getCurrentPosition(async pos => {
     const lat = pos.coords.latitude.toFixed(6);
     const lng = pos.coords.longitude.toFixed(6);
-    const label = await getLocationLabel(lat, lng);
-    setStoreLocationFields('profile', lat, lng, label);
+    const details = await getLocationDetails(lat, lng);
+    setStoreLocationFields('profile', lat, lng, details);
     btn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> Detect My Location';
   }, () => { toast('Allow location access'); btn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> Detect My Location'; });
 }
@@ -2035,7 +2043,7 @@ function detectLocation() {
 async function saveLocation() {
   const lat = parseFloat(document.getElementById('lat-inp').value);
   const lng = parseFloat(document.getElementById('lng-inp').value);
-  const label = document.getElementById('loc-coords').textContent || 'Selected location';
+  const label = selectedProfileLocation?.label || document.getElementById('loc-coords').textContent || 'Selected location';
   if (!lat || !lng) { toast('Detect or enter your location first'); return; }
   try {
     const r = await fetch(API + '/stores/' + store.id + '/location', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ latitude: lat, longitude: lng, address: label }) });
