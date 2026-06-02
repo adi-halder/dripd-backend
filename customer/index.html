@@ -801,23 +801,33 @@ async function sendOTP() {
   try {
     const otpRes = await fetch(`${API}/otp/send`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone})});
     const otpData = await otpRes.json();
-    if (otpData.otp) {
-      toast('Your OTP is: ' + otpData.otp);
-    } else {
-      toast('OTP sent to ' + phone);
+    if (!otpData.success) {
+      toast(otpData.error || 'Could not send OTP');
+      btn.textContent = 'GET OTP'; btn.disabled = false;
+      return;
     }
-  } catch(e) { toast('OTP sent to your number!'); }
+    toast('OTP sent to ' + phone);
+  } catch(e) {
+    toast('Could not send OTP. Check your connection.');
+    btn.textContent = 'GET OTP'; btn.disabled = false;
+    return;
+  }
+  if (btn.disabled) { btn.textContent = 'GET OTP'; btn.disabled = false; }
   document.getElementById('otp-msg').textContent = 'OTP sent to ' + phone;
   document.getElementById('inp-otp').value = '';
   gotoStep('s-otp');
   document.getElementById('inp-otp').focus();
-  btn.textContent = 'GET OTP'; btn.disabled = false;
 }
 
 async function verifyOTP() {
   const phone = document.getElementById('inp-phone').value.trim();
   const otp = document.getElementById('inp-otp').value.trim();
   if (otp.length < 6) { toast('Enter the 6-digit OTP'); return; }
+  try {
+    const vr = await fetch(`${API}/otp/verify`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,otp})});
+    const vd = await vr.json();
+    if (!vd.success) { toast(vd.error || 'Incorrect OTP'); return; }
+  } catch(e) { toast('Could not verify OTP. Try again.'); return; }
   try {
     const r = await fetch(`${API}/customers/${phone}`);
     const d = await r.json();
@@ -1396,6 +1406,14 @@ function openAddressPanel() {
   openPanel('address-panel');
 }
 
+function setDetectedLocation(lat, lng, label) {
+  localStorage.setItem('dd_lat', lat);
+  localStorage.setItem('dd_lng', lng);
+  localStorage.setItem('dd_loc_label', label);
+  document.getElementById('detected-area').textContent = label;
+  document.getElementById('loc-label').textContent = label;
+}
+
 function redetectLocation() {
   document.getElementById('detected-area').textContent = 'Detecting...';
   if (!navigator.geolocation) { toast('Location not supported'); return; }
@@ -1403,35 +1421,48 @@ function redetectLocation() {
     const {latitude: lat, longitude: lng} = pos.coords;
     const accuracy = pos.coords.accuracy;
     console.log('GPS accuracy:', accuracy, 'meters');
-    localStorage.setItem('dd_lat', lat);
-    localStorage.setItem('dd_lng', lng);
     try {
-      const gmKey = await fetch(API + '/config/maps-key').then(r=>r.json()).then(d=>d.key).catch(()=>null);
-      let label = 'Your location';
-      if (gmKey) {
-        const r = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${gmKey}&result_type=sublocality|locality`);
-        const d = await r.json();
-        if (d.results && d.results.length > 0) {
-          const components = d.results[0].address_components;
-          const sublocality = components.find(c => c.types.includes('sublocality_level_1') || c.types.includes('sublocality'));
-          const locality = components.find(c => c.types.includes('locality'));
-          const area2 = sublocality?.long_name || locality?.long_name || '';
-          const city2 = locality?.long_name || '';
-          label = area2 ? (area2 + (city2 && city2 !== area2 ? ', ' + city2 : '')) : d.results[0].formatted_address.split(',').slice(0,2).join(',');
-        }
-      } else {
-        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
-        const d = await r.json();
-        const addr2 = d.address || {};
-        const area2 = addr2.suburb || addr2.neighbourhood || addr2.quarter || '';
-        const city2 = addr2.city || addr2.town || '';
-        label = area2 ? (area2 + (city2 ? ', ' + city2 : '')) : city2 || 'Your location';
-      }
-      localStorage.setItem('dd_loc_label', label);
-      document.getElementById('detected-area').textContent = label;
-      document.getElementById('loc-label').textContent = d.address?.suburb || d.address?.neighbourhood || 'Location set';
-    } catch(e) { document.getElementById('detected-area').textContent = 'Location detected'; }
+      const r = await fetch(`${API}/location/reverse?lat=${lat}&lng=${lng}`);
+      const d = await r.json();
+      const label = d.success ? d.label : 'Location detected';
+      setDetectedLocation(lat, lng, label);
+    } catch(e) {
+      setDetectedLocation(lat, lng, 'Location detected');
+    }
   }, () => { toast('Allow location access'); document.getElementById('detected-area').textContent = 'Could not detect location'; }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+}
+
+async function searchAddressLocation() {
+  const q = document.getElementById('addr-search').value.trim();
+  const box = document.getElementById('addr-search-results');
+  if (q.length < 3) { box.innerHTML = ''; return; }
+  box.innerHTML = '<div style="padding:10px;color:var(--text3);font-size:12px">Searching...</div>';
+  try {
+    const r = await fetch(`${API}/location/search?q=${encodeURIComponent(q)}`);
+    const d = await r.json();
+    const results = d.results || [];
+    if (!d.success || !results.length) {
+      box.innerHTML = '<div style="padding:10px;color:var(--text3);font-size:12px">No location found</div>';
+      return;
+    }
+    window._addrResults = results;
+    box.innerHTML = results.map((item, idx) => `
+      <div onclick="chooseAddressLocation(${idx})" style="padding:11px 0;border-bottom:1px solid var(--border);cursor:pointer">
+        <div style="font-size:13px;font-weight:700;color:#fff">${item.label}</div>
+        <div style="font-size:11px;color:var(--text3);line-height:1.35">${item.address || ''}</div>
+      </div>`).join('');
+  } catch(e) {
+    box.innerHTML = '<div style="padding:10px;color:var(--text3);font-size:12px">Search failed</div>';
+  }
+}
+
+function chooseAddressLocation(idx) {
+  const item = (window._addrResults || [])[idx];
+  if (!item) return;
+  setDetectedLocation(item.lat, item.lng, item.label);
+  document.getElementById('addr-search').value = item.label;
+  document.getElementById('addr-search-results').innerHTML = '';
+  loadStores();
 }
 
 function selAddrType(type, btn) {
@@ -1578,6 +1609,8 @@ function removeFromBag(idx) {
     <!-- Detected area -->
     <div style="padding:16px;border-bottom:1px solid var(--border)">
       <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">DETECTED AREA</div>
+      <input class="inp" id="addr-search" placeholder="Search area, street or landmark" oninput="clearTimeout(window._addrSearch);window._addrSearch=setTimeout(searchAddressLocation,400)" style="margin-bottom:10px">
+      <div id="addr-search-results" style="margin-bottom:10px"></div>
       <div style="display:flex;align-items:center;gap:10px;background:var(--card2);border-radius:var(--r-sm);padding:12px 14px">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
         <div id="detected-area" style="font-size:14px;font-weight:600;color:#fff;flex:1">Detecting your location...</div>

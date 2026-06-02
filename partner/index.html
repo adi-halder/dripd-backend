@@ -709,12 +709,17 @@ async function sendOTP() {
   try {
     const otpRes = await fetch(`${API}/otp/send`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone})});
     const otpData = await otpRes.json();
-    if (otpData.otp) {
-      toast('Your OTP is: ' + otpData.otp);
-    } else {
-      toast('OTP sent to ' + phone);
+    if (!otpData.success) {
+      toast(otpData.error || 'Could not send OTP');
+      btn.textContent = 'GET OTP'; btn.disabled = false;
+      return;
     }
-  } catch(e) { toast('OTP sent to your number!'); }
+    toast('OTP sent to ' + phone);
+  } catch(e) {
+    toast('Could not send OTP. Check your connection.');
+    btn.textContent = 'GET OTP'; btn.disabled = false;
+    return;
+  }
   document.getElementById('otp-sent-msg').textContent = 'OTP sent to ' + phone;
   gotoStep('s-otp');
   document.getElementById('inp-otp').focus();
@@ -725,6 +730,11 @@ async function verifyOTP() {
   const phone = document.getElementById('inp-phone').value.trim();
   const otp = document.getElementById('inp-otp').value.trim();
   if (otp.length < 6) { toast('Enter the 6-digit OTP'); return; }
+  try {
+    const vr = await fetch(`${API}/otp/verify`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,otp})});
+    const vd = await vr.json();
+    if (!vd.success) { toast(vd.error || 'Incorrect OTP'); return; }
+  } catch(e) { toast('Could not verify OTP. Try again.'); return; }
   try {
     const r = await fetch(`${API}/partners/${phone}`);
     const d = await r.json();

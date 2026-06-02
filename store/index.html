@@ -567,6 +567,9 @@ select.inp{cursor:pointer;appearance:none;background-image:url("data:image/svg+x
           Detect My Location
         </button>
         <div style="margin-top:12px">
+          <label class="lbl">Search location</label>
+          <input class="inp" id="r-loc-search" placeholder="Search store address or area" oninput="clearTimeout(window._regLocSearch);window._regLocSearch=setTimeout(()=>searchStoreLocation('reg'),400)">
+          <div id="r-loc-results" style="margin-top:-8px;margin-bottom:12px"></div>
           <label class="lbl">Or enter manually</label>
           <div style="display:flex;gap:8px">
             <input class="inp" id="r-lat" placeholder="Latitude" type="number" step="0.0001" style="flex:1;margin-bottom:0">
@@ -965,6 +968,9 @@ select.inp{cursor:pointer;appearance:none;background-image:url("data:image/svg+x
         <div class="loc-status" id="loc-status">Location saved!</div>
         <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--text3);text-align:center;display:none" id="loc-coords"></div>
         <div style="margin-top:8px">
+          <label class="lbl">Search location</label>
+          <input class="inp" id="loc-search" placeholder="Search store address or area" oninput="clearTimeout(window._storeLocSearch);window._storeLocSearch=setTimeout(()=>searchStoreLocation('profile'),400)">
+          <div id="loc-search-results" style="margin-top:-8px;margin-bottom:12px"></div>
           <label class="lbl">Or enter manually</label>
           <div style="display:flex;gap:8px;margin-bottom:0">
             <input class="inp" id="lat-inp" placeholder="Latitude" style="margin-bottom:0;flex:1" type="number" step="0.0001">
@@ -1326,6 +1332,69 @@ function docUploaded(inp, statusId, checkId) {
   document.getElementById(checkId).classList.add('on');
 }
 
+async function getLocationLabel(lat, lng) {
+  try {
+    const r = await fetch(`${API}/location/reverse?lat=${lat}&lng=${lng}`);
+    const d = await r.json();
+    return d.success ? d.label : `${lat}, ${lng}`;
+  } catch(e) {
+    return `${lat}, ${lng}`;
+  }
+}
+
+function setStoreLocationFields(mode, lat, lng, label) {
+  if (mode === 'reg') {
+    document.getElementById('r-lat').value = lat;
+    document.getElementById('r-lng').value = lng;
+    regLat = parseFloat(lat); regLng = parseFloat(lng);
+    document.getElementById('reg-map-preview').classList.add('has-loc');
+    document.getElementById('reg-loc-txt').style.display = 'block';
+    document.getElementById('reg-loc-txt').textContent = label;
+    document.getElementById('r-loc-search').value = label;
+    document.getElementById('r-loc-results').innerHTML = '';
+  } else {
+    document.getElementById('lat-inp').value = lat;
+    document.getElementById('lng-inp').value = lng;
+    document.getElementById('loc-coords').textContent = label;
+    document.getElementById('loc-coords').style.display = 'block';
+    document.getElementById('loc-search').value = label;
+    document.getElementById('loc-search-results').innerHTML = '';
+  }
+}
+
+async function searchStoreLocation(mode) {
+  const inputId = mode === 'reg' ? 'r-loc-search' : 'loc-search';
+  const resultId = mode === 'reg' ? 'r-loc-results' : 'loc-search-results';
+  const q = document.getElementById(inputId).value.trim();
+  const box = document.getElementById(resultId);
+  if (q.length < 3) { box.innerHTML = ''; return; }
+  box.innerHTML = '<div style="padding:10px;color:var(--text3);font-size:12px">Searching...</div>';
+  try {
+    const r = await fetch(`${API}/location/search?q=${encodeURIComponent(q)}`);
+    const d = await r.json();
+    const results = d.results || [];
+    if (!d.success || !results.length) {
+      box.innerHTML = '<div style="padding:10px;color:var(--text3);font-size:12px">No location found</div>';
+      return;
+    }
+    window[mode === 'reg' ? '_regLocResults' : '_storeLocResults'] = results;
+    box.innerHTML = results.map((item, idx) => `
+      <div onclick="chooseStoreLocation('${mode}',${idx})" style="padding:11px 0;border-bottom:1px solid var(--border);cursor:pointer">
+        <div style="font-size:13px;font-weight:700;color:var(--text)">${item.label}</div>
+        <div style="font-size:11px;color:var(--text3);line-height:1.35">${item.address || ''}</div>
+      </div>`).join('');
+  } catch(e) {
+    box.innerHTML = '<div style="padding:10px;color:var(--text3);font-size:12px">Search failed</div>';
+  }
+}
+
+function chooseStoreLocation(mode, idx) {
+  const results = window[mode === 'reg' ? '_regLocResults' : '_storeLocResults'] || [];
+  const item = results[idx];
+  if (!item) return;
+  setStoreLocationFields(mode, item.lat, item.lng, item.label);
+}
+
 function detectRegLocation() {
   if (!navigator.geolocation) { toast('Geolocation not supported on this device'); return; }
   const btn = document.querySelector('#step-2 .loc-detect-btn');
@@ -1333,29 +1402,8 @@ function detectRegLocation() {
   navigator.geolocation.getCurrentPosition(async pos => {
     const lat = pos.coords.latitude.toFixed(6);
     const lng = pos.coords.longitude.toFixed(6);
-    document.getElementById('r-lat').value = lat;
-    document.getElementById('r-lng').value = lng;
-    regLat = parseFloat(lat); regLng = parseFloat(lng);
-    const preview = document.getElementById('reg-map-preview');
-    preview.classList.add('has-loc');
-    const txt = document.getElementById('reg-loc-txt');
-    txt.style.display = 'block';
-    // Try Google Maps for readable address
-    try {
-      const gmRes = await fetch(API + '/config/maps-key').then(r=>r.json());
-      const gmKey = gmRes.key;
-      if (gmKey) {
-        const gr = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${gmKey}&result_type=sublocality|locality`);
-        const gd = await gr.json();
-        if (gd.results && gd.results.length > 0) {
-          const comps = gd.results[0].address_components;
-          const sub = comps.find(c => c.types.includes('sublocality_level_1') || c.types.includes('sublocality'));
-          const loc = comps.find(c => c.types.includes('locality'));
-          const areaName = sub?.long_name || loc?.long_name || (lat + ', ' + lng);
-          txt.textContent = areaName;
-        } else { txt.textContent = lat + ', ' + lng; }
-      } else { txt.textContent = lat + ', ' + lng; }
-    } catch(e) { txt.textContent = lat + ', ' + lng; }
+    const label = await getLocationLabel(lat, lng);
+    setStoreLocationFields('reg', lat, lng, label);
     btn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> Location Detected';
     toast('Location detected successfully!');
   }, () => {
@@ -1419,15 +1467,13 @@ function startResend() {
 }
 
 async function sendOTPApi(ph) {
-  try {
-    // Ensure proper phone format
-    let cleanPh = ph.replace(/\s/g, '').replace('+91', '');
-    if (cleanPh.length === 10) cleanPh = '+91' + cleanPh;
-    const r = await fetch(API + '/otp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: cleanPh }) });
-    const d = await r.json();
-    otpLocal = d.otp || d.debug_otp || null;
-    phone = cleanPh;
-  } catch(e) { otpLocal = String(Math.floor(100000 + Math.random() * 900000)); }
+  let cleanPh = ph.replace(/\s/g, '').replace('+91', '');
+  if (cleanPh.length === 10) cleanPh = '+91' + cleanPh;
+  const r = await fetch(API + '/otp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: cleanPh }) });
+  const d = await r.json();
+  if (!d.success) throw new Error(d.error || 'Could not send OTP');
+  otpLocal = null;
+  phone = cleanPh;
 }
 
 async function regSendOTP() {
@@ -1438,9 +1484,13 @@ async function regSendOTP() {
   const btn = document.getElementById('reg-btn');
   btn.disabled = true; btn.textContent = 'Sending OTP...';
   phone = ph;
-  await sendOTPApi(ph);
+  try {
+    await sendOTPApi(ph);
+    showOTPScreen(phone);
+  } catch(e) {
+    showMsg('st-s5', e.message || 'Could not send OTP', 'err');
+  }
   btn.disabled = false; btn.textContent = 'GET OTP & REGISTER';
-  showOTPScreen(ph);
 }
 
 async function logSendOTP() {
@@ -1449,14 +1499,22 @@ async function logSendOTP() {
   if (!ph || ph.replace('+91','').length < 10) { showMsg('st-log','Enter valid phone number','err'); return; }
   phone = ph;
   localStorage.setItem('dripd_last_phone', ph);
-  await sendOTPApi(ph);
-  showOTPScreen(ph);
+  try {
+    await sendOTPApi(ph);
+    showOTPScreen(phone);
+  } catch(e) {
+    showMsg('st-log', e.message || 'Could not send OTP', 'err');
+  }
 }
 
 async function resendOTP() {
-  await sendOTPApi(phone);
-  if (otpLocal) document.getElementById('otp-hint-code').textContent = otpLocal;
-  startResend();
+  try {
+    await sendOTPApi(phone);
+    startResend();
+    showMsg('st-otp','OTP resent','ok');
+  } catch(e) {
+    showMsg('st-otp', e.message || 'Could not resend OTP', 'err');
+  }
 }
 
 async function verifyOTP() {
@@ -1469,18 +1527,16 @@ async function verifyOTP() {
   try {
     const vr = await fetch(API + '/otp/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, otp: entered }) });
     const vd = await vr.json();
-    if (!vd.success && otpLocal && entered !== otpLocal) {
-      showMsg('st-otp','Incorrect OTP','err'); btn.disabled = false; btn.textContent = 'VERIFY & ENTER'; return;
-    }
+    if (!vd.success) { showMsg('st-otp', vd.error || 'Incorrect OTP','err'); btn.disabled = false; btn.textContent = 'VERIFY & ENTER'; return; }
   } catch(e) {
-    if (otpLocal && entered !== otpLocal) { showMsg('st-otp','Incorrect OTP','err'); btn.disabled = false; btn.textContent = 'VERIFY & ENTER'; return; }
+    showMsg('st-otp','Could not verify OTP. Try again.','err'); btn.disabled = false; btn.textContent = 'VERIFY & ENTER'; return;
   }
 
   if (authMode === 'reg') {
     try {
       const nm = document.getElementById('rn').value.trim();
       const own = document.getElementById('ro').value.trim();
-      const area = document.getElementById('ra').value.trim();
+      const area = document.getElementById('r-loc-search').value.trim() || document.getElementById('reg-loc-txt').textContent || document.getElementById('ra').value.trim();
       const address = document.getElementById('r-address').value.trim();
       const btype = document.getElementById('r-btype').value;
       const openT = document.getElementById('r-open').value;
@@ -1496,7 +1552,7 @@ async function verifyOTP() {
       if (d.success || d.store_id || d.pending) {
         // Save location immediately if we have it
         if (d.store_id && regLat && regLng) {
-          try { await fetch(API + '/stores/' + d.store_id + '/location', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ latitude: regLat, longitude: regLng }) }); } catch(e) {}
+          try { await fetch(API + '/stores/' + d.store_id + '/location', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ latitude: regLat, longitude: regLng, address: area }) }); } catch(e) {}
         }
         // If already approved store, enter app directly
         if (d.store) {
@@ -1915,10 +1971,8 @@ function detectLocation() {
   navigator.geolocation.getCurrentPosition(async pos => {
     const lat = pos.coords.latitude.toFixed(6);
     const lng = pos.coords.longitude.toFixed(6);
-    document.getElementById('lat-inp').value = lat;
-    document.getElementById('lng-inp').value = lng;
-    document.getElementById('loc-coords').textContent = lat + ', ' + lng;
-    document.getElementById('loc-coords').style.display = 'block';
+    const label = await getLocationLabel(lat, lng);
+    setStoreLocationFields('profile', lat, lng, label);
     btn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> Detect My Location';
   }, () => { toast('Allow location access'); btn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> Detect My Location'; });
 }
@@ -1926,12 +1980,14 @@ function detectLocation() {
 async function saveLocation() {
   const lat = parseFloat(document.getElementById('lat-inp').value);
   const lng = parseFloat(document.getElementById('lng-inp').value);
+  const label = document.getElementById('loc-coords').textContent || document.getElementById('loc-search').value.trim();
   if (!lat || !lng) { toast('Detect or enter your location first'); return; }
   try {
-    const r = await fetch(API + '/stores/' + store.id + '/location', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ latitude: lat, longitude: lng }) });
+    const r = await fetch(API + '/stores/' + store.id + '/location', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ latitude: lat, longitude: lng, address: label }) });
     const d = await r.json();
     if (d.success) {
       store.latitude = lat; store.longitude = lng;
+      if (label) store.area = label;
       localStorage.setItem('dripd_store', JSON.stringify(store));
       document.getElementById('loc-status').style.display = 'block';
       toast('Location saved! Customers nearby can now find your store.');

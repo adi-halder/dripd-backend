@@ -11,6 +11,7 @@ from psycopg2.extras import RealDictCursor
 import uuid
 import json
 import random
+import re
 
 app = FastAPI(title="Drip'd API", version="1.0")
 
@@ -30,10 +31,63 @@ GOOGLE_MAPS_KEY = os.environ.get("GOOGLE_MAPS_KEY", "")
 def get_maps_key():
     return {"key": GOOGLE_MAPS_KEY}
 
+@app.get("/location/reverse")
+async def reverse_location(lat: float, lng: float):
+    try:
+        return await reverse_geocode_label(lat, lng)
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.get("/location/search")
+async def search_location(q: str):
+    query = (q or "").strip()
+    if len(query) < 3:
+        return {"success": False, "error": "Enter at least 3 characters"}
+    try:
+        results = []
+        if GOOGLE_MAPS_KEY:
+            async with httpx.AsyncClient() as client:
+                r = await client.get(
+                    "https://maps.googleapis.com/maps/api/geocode/json",
+                    params={"address": query, "key": GOOGLE_MAPS_KEY, "region": "in"},
+                    timeout=10
+                )
+            data = r.json()
+            if data.get("status") not in ("OK", "ZERO_RESULTS"):
+                return {"success": False, "error": data.get("error_message") or data.get("status", "Google Maps error")}
+            for item in data.get("results", [])[:6]:
+                loc = item.get("geometry", {}).get("location", {})
+                if loc.get("lat") is None or loc.get("lng") is None:
+                    continue
+                results.append({
+                    "label": item.get("formatted_address", query),
+                    "address": item.get("formatted_address", query),
+                    "lat": loc["lat"],
+                    "lng": loc["lng"]
+                })
+        else:
+            async with httpx.AsyncClient(headers={"User-Agent": "Dripd/1.0 support@getdripd.in"}) as client:
+                r = await client.get(
+                    "https://nominatim.openstreetmap.org/search",
+                    params={"q": query, "format": "json", "addressdetails": 1, "limit": 6, "countrycodes": "in"},
+                    timeout=10
+                )
+            for item in r.json():
+                results.append({
+                    "label": short_location_label(item.get("address", {}), item.get("display_name", query)),
+                    "address": item.get("display_name", query),
+                    "lat": float(item["lat"]),
+                    "lng": float(item["lon"])
+                })
+        return {"success": True, "results": results}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 
 CASHFREE_SECRET_KEY = os.environ.get("CASHFREE_SECRET_KEY", "")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
-FAST2SMS_API_KEY = os.environ.get("FAST2SMS_KEY", "ct7FUai0fNvT3hAzueIYMHQJsLkOqEb4dW89yxGnXPR5SorjVZ5ytRNE6JxYkBoO4UPAr3c8pTSGhw9b")
+FAST2SMS_API_KEY = os.environ.get("FAST2SMS_KEY", "")
+FAST2SMS_ROUTE = os.environ.get("FAST2SMS_ROUTE", "otp")
 otp_store = {}
 
 # ============ DATABASE ============
@@ -160,6 +214,63 @@ async def process_cashfree_refund(payment_id: str, amount: int, notes: str):
         return {"success": False, "error": str(e)}
 
 # ============ HELPERS ============
+def normalize_indian_phone(phone: str) -> str:
+    digits = re.sub(r"\D", "", phone or "")
+    if digits.startswith("91") and len(digits) == 12:
+        digits = digits[2:]
+    return digits
+
+def otp_store_key(phone: str) -> str:
+    return normalize_indian_phone(phone) or (phone or "").strip()
+
+def short_location_label(address: dict, fallback: str = "Location found") -> str:
+    if not address:
+        return fallback
+    area = (
+        address.get("suburb") or address.get("neighbourhood") or
+        address.get("quarter") or address.get("city_district") or
+        address.get("village")
+    )
+    city = address.get("city") or address.get("town") or address.get("municipality") or address.get("county")
+    state = address.get("state")
+    parts = []
+    for part in (area, city, state):
+        if part and part not in parts:
+            parts.append(part)
+    return ", ".join(parts[:3]) or fallback
+
+async def reverse_geocode_label(lat: float, lng: float) -> dict:
+    if GOOGLE_MAPS_KEY:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(
+                "https://maps.googleapis.com/maps/api/geocode/json",
+                params={"latlng": f"{lat},{lng}", "key": GOOGLE_MAPS_KEY},
+                timeout=10
+            )
+        data = r.json()
+        if data.get("status") == "OK" and data.get("results"):
+            result = data["results"][0]
+            comps = result.get("address_components", [])
+            def pick(*types):
+                for comp in comps:
+                    if any(t in comp.get("types", []) for t in types):
+                        return comp.get("long_name")
+                return None
+            area = pick("sublocality_level_1", "sublocality", "neighborhood")
+            city = pick("locality", "administrative_area_level_3")
+            state = pick("administrative_area_level_1")
+            label = ", ".join([p for p in (area, city, state) if p])
+            return {"success": True, "label": label or result.get("formatted_address", "Location found"), "address": result.get("formatted_address", "")}
+    async with httpx.AsyncClient(headers={"User-Agent": "Dripd/1.0 support@getdripd.in"}) as client:
+        r = await client.get(
+            "https://nominatim.openstreetmap.org/reverse",
+            params={"lat": lat, "lon": lng, "format": "json", "addressdetails": 1},
+            timeout=10
+        )
+    data = r.json()
+    address = data.get("address", {})
+    return {"success": True, "label": short_location_label(address), "address": data.get("display_name", ""), "raw": data}
+
 def create_invoice(cur, order, order_id: str, store_name: str, product_name: str, product_price: int):
     invoice_number = f"INV-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
     cur.execute("""
@@ -201,56 +312,72 @@ def home():
 async def send_otp(request: Request):
     data = await request.json()
     phone = data.get("phone", "")
-    if not phone:
-        return {"success": False, "error": "Phone number required"}
+    clean = normalize_indian_phone(phone)
+    if len(clean) != 10:
+        return {"success": False, "error": "Enter a valid 10-digit Indian phone number"}
+    if not FAST2SMS_API_KEY:
+        return {"success": False, "error": "FAST2SMS_KEY is not configured on the server"}
     otp = str(random.randint(100000, 999999))
-    otp_store[phone] = {
+    key = otp_store_key(phone)
+    otp_store[key] = {
         "otp": otp,
         "expires": datetime.now() + timedelta(minutes=10),
         "attempts": 0
     }
-    clean = phone.replace("+91", "").replace(" ", "").strip()
-    if clean.startswith("91") and len(clean) == 12:
-        clean = clean[2:]
     try:
+        params = {
+            "authorization": FAST2SMS_API_KEY,
+            "route": FAST2SMS_ROUTE,
+            "numbers": clean
+        }
+        if FAST2SMS_ROUTE == "otp":
+            params["variables_values"] = otp
+        else:
+            params.update({
+                "message": f"{otp} is your Dripd verification code. Valid for 10 minutes.",
+                "language": "english"
+            })
         async with httpx.AsyncClient() as client:
             r = await client.get(
                 "https://www.fast2sms.com/dev/bulkV2",
-                params={
-                    "authorization": FAST2SMS_API_KEY,
-                    "message": f"{otp} is your Dripd verification code. Valid for 10 minutes.",
-                    "language": "english",
-                    "route": "q",
-                    "numbers": clean
-                },
+                params=params,
                 timeout=15
             )
-            res = r.json()
-            if res.get("return") == True:
+            try:
+                res = r.json()
+            except Exception:
+                res = {"message": r.text}
+            if r.status_code < 400 and res.get("return") is True:
                 return {"success": True, "message": "OTP sent to your phone"}
-            else:
-                return {"success": True, "message": "OTP sent", "otp": otp}
-    except Exception:
-        return {"success": True, "message": "OTP sent", "otp": otp}
+            otp_store.pop(key, None)
+            return {
+                "success": False,
+                "error": res.get("message") or res.get("error") or "Fast2SMS could not send this OTP",
+                "details": res
+            }
+    except Exception as e:
+        otp_store.pop(key, None)
+        return {"success": False, "error": f"Fast2SMS request failed: {e}"}
 
 @app.post("/otp/verify")
 async def verify_otp(request: Request):
     data = await request.json()
     phone = data.get("phone", "")
     otp = data.get("otp", "")
-    stored = otp_store.get(phone)
+    key = otp_store_key(phone)
+    stored = otp_store.get(key)
     if not stored:
         return {"success": False, "error": "OTP expired. Request a new one."}
     if datetime.now() > stored["expires"]:
-        del otp_store[phone]
+        del otp_store[key]
         return {"success": False, "error": "OTP expired. Request a new one."}
     stored["attempts"] += 1
     if stored["attempts"] > 5:
-        del otp_store[phone]
+        del otp_store[key]
         return {"success": False, "error": "Too many attempts. Request a new OTP."}
     if stored["otp"] != otp:
         return {"success": False, "error": "Incorrect OTP. Try again."}
-    del otp_store[phone]
+    del otp_store[key]
     return {"success": True, "message": "Phone verified!"}
 
 # ============ CUSTOMERS ============
@@ -458,11 +585,15 @@ def update_store_location(store_id: str, body: dict):
     try:
         lat = body.get("latitude")
         lng = body.get("longitude")
-        if not lat or not lng:
+        if lat is None or lng is None:
             return {"error": "latitude and longitude required"}
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("UPDATE stores SET latitude = %s, longitude = %s WHERE id = %s", (lat, lng, store_id))
+        address = (body.get("address") or body.get("area") or "").strip()
+        if address:
+            cur.execute("UPDATE stores SET latitude = %s, longitude = %s, area = %s WHERE id = %s", (lat, lng, address, store_id))
+        else:
+            cur.execute("UPDATE stores SET latitude = %s, longitude = %s WHERE id = %s", (lat, lng, store_id))
         conn.commit()
         conn.close()
         return {"success": True}
