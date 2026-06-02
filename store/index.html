@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1419,9 +1420,13 @@ function startResend() {
 
 async function sendOTPApi(ph) {
   try {
-    const r = await fetch(API + '/otp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: ph }) });
+    // Ensure proper phone format
+    let cleanPh = ph.replace(/\s/g, '').replace('+91', '');
+    if (cleanPh.length === 10) cleanPh = '+91' + cleanPh;
+    const r = await fetch(API + '/otp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: cleanPh }) });
     const d = await r.json();
-    otpLocal = d.debug_otp || null;
+    otpLocal = d.otp || d.debug_otp || null;
+    phone = cleanPh;
   } catch(e) { otpLocal = String(Math.floor(100000 + Math.random() * 900000)); }
 }
 
@@ -1488,21 +1493,29 @@ async function verifyOTP() {
       if (regLat && regLng) { body.latitude = regLat; body.longitude = regLng; }
       const r = await fetch(API + '/stores/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await r.json();
-      if (d.success || d.store_id) {
+      if (d.success || d.store_id || d.pending) {
         // Save location immediately if we have it
         if (d.store_id && regLat && regLng) {
           try { await fetch(API + '/stores/' + d.store_id + '/location', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ latitude: regLat, longitude: regLng }) }); } catch(e) {}
         }
-        document.getElementById('pending-phone').textContent = phone;
-        document.getElementById('ss-pending').classList.add('on');
-        document.getElementById('s-auth').classList.remove('on');
+        // If already approved store, enter app directly
+        if (d.store) {
+          store = d.store;
+          localStorage.setItem('dripd_store', JSON.stringify(store));
+          localStorage.setItem('dripd_last_phone', phone);
+          enterApp();
+        } else {
+          document.getElementById('pending-phone').textContent = phone;
+          document.getElementById('ss-pending').classList.add('on');
+          document.getElementById('s-auth').classList.remove('on');
+        }
       } else {
         if (d.error && d.error.toLowerCase().includes('already registered')) {
           // Auto-switch to login flow
           showMsg('st-otp', 'Phone already registered. Logging you in...', 'ok');
           setTimeout(async () => {
             try {
-              const lr = await fetch(API + '/stores/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }) });
+              const lr = await fetch(API + '/stores/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, otp: entered }) });
               const ld = await lr.json();
               if (ld.success && ld.store) {
                 store = ld.store; localStorage.setItem('dripd_store', JSON.stringify(store)); localStorage.setItem('dripd_last_phone', phone); enterApp();
@@ -1524,7 +1537,7 @@ async function verifyOTP() {
     } catch(e) { showMsg('st-otp','Could not connect. Try again.','err'); btn.disabled = false; btn.textContent = 'VERIFY & ENTER'; }
   } else {
     try {
-      const r = await fetch(API + '/stores/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }) });
+      const r = await fetch(API + '/stores/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, otp: entered }) });
       const d = await r.json();
       if (d.success && d.store) {
         store = d.store; localStorage.setItem('dripd_store', JSON.stringify(store)); localStorage.setItem('dripd_last_phone', phone); enterApp();
@@ -1540,7 +1553,7 @@ async function verifyOTP() {
         setTimeout(() => switchTab('reg'), 1500);
         btn.disabled = false; btn.textContent = 'VERIFY & ENTER';
       } else {
-        showMsg('st-otp', d.error || 'Login failed','err'); btn.disabled = false; btn.textContent = 'VERIFY & ENTER';
+        showMsg('st-otp', d.error || 'Login failed. Try again.','err'); btn.disabled = false; btn.textContent = 'VERIFY & ENTER';
       }
     } catch(e) { showMsg('st-otp','Could not connect. Try again.','err'); btn.disabled = false; btn.textContent = 'VERIFY & ENTER'; }
   }
