@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Drip'd Partner</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --black:#0d0d0d;--white:#161616;--bg:#0d0d0d;--bg2:#161616;
+  --text:#ffffff;--text2:rgba(255,255,255,0.55);--text3:rgba(255,255,255,0.3);
+  --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.14);
+  --red:#d42b2b;--red-dim:rgba(212,43,43,0.07);
+  --green:#1e8a5e;--green-dim:rgba(30,138,94,0.08);--green-glow:rgba(30,138,94,0.3);
+  --gold:#b8872a;--blue:#2563eb;--orange:#e07b20;
+  --nav:68px;--r:16px;--r-sm:10px;
+  --sh:0 1px 8px rgba(0,0,0,0.07);--sh-md:0 4px 24px rgba(0,0,0,0.12);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
+html{height:100%;background:var(--bg)}
+body{background:#080808;color:#fff;font-family:'DM Sans',sans-serif;width:100%;position:relative;height:100%;overflow:hidden;font-size:15px;line-height:1.5}
+#intro{position:fixed;inset:0;z-index:9999;background:#0d0d0d;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;left:0;right:0;margin:0 auto}
+.ig{position:absolute;inset:0;background-image:linear-gradient(rgba(30,138,94,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(30,138,94,0.05) 1px,transparent 1px);background-size:36px 36px;animation:igm 10s linear infinite}
+@keyframes igm{to{background-position:0 36px}}
+.iglow{position:absolute;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(30,138,94,0.15),transparent 65%);top:50%;left:50%;transform:translate(-50%,-50%)}
+.i-moto{font-size:72px;margin-bottom:32px;position:relative;z-index:1;animation:float 3s ease-in-out infinite;filter:drop-shadow(0 8px 24px rgba(30,138,94,0.4))}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+.i-logo{font-family:'Bebas Neue',sans-serif;font-size:52px;letter-spacing:8px;color:#fff;position:relative;z-index:1;line-height:1}
+.i-logo b{color:var(--green)}
+.i-sub{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:3px;color:rgba(255,255,255,0.3);text-transform:uppercase;margin-top:8px;position:relative;z-index:1;display:flex;align-items:center;gap:10px}
+.i-sub::before,.i-sub::after{content:'';flex:1;height:1px;background:rgba(255,255,255,0.1)}
+.i-prog{width:140px;margin-top:48px;position:relative;z-index:1}
+.i-track{height:1px;background:rgba(255,255,255,0.08)}
+.i-fill{height:100%;background:var(--green);width:0;transition:width 0.12s linear;box-shadow:0 0 8px var(--green)}
+.i-pct{font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,0.22);margin-top:10px;text-align:center;letter-spacing:2px}
+@keyframes iout{to{opacity:0;pointer-events:none}}
+#auth-overlay{position:fixed;inset:0;max-width:430px;margin:0 auto;left:0;right:0;z-index:500;background:var(--white);display:none;flex-direction:column;overflow-y:auto;left:0;right:0;margin:0 auto}
+.ah{background:var(--black);padding:48px 24px 32px;text-align:center;position:relative;overflow:hidden;flex-shrink:0}
+.ah::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 100%,rgba(30,138,94,0.2),transparent 60%)}
+.ah-logo{font-family:'Bebas Neue',sans-serif;font-size:40px;letter-spacing:8px;color:#fff;position:relative;z-index:1}
+.ah-logo b{color:var(--green)}
+.ah-badge{display:inline-block;margin-top:8px;background:rgba(30,138,94,0.15);border:1px solid rgba(30,138,94,0.3);border-radius:20px;padding:4px 14px;font-family:'Space Mono',monospace;font-size:9px;color:rgba(255,255,255,0.5);letter-spacing:2px;text-transform:uppercase;position:relative;z-index:1}
+.ab{padding:28px 24px;flex:1}
+.astep{display:none}.astep.on{display:block}
+.at{font-size:26px;font-weight:700;color:var(--text);margin-bottom:8px}
+.as{font-size:15px;color:var(--text2);line-height:1.6;margin-bottom:28px}
+.lbl{display:block;font-size:11px;font-weight:700;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px}
+.inp{width:100%;padding:15px 16px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:15px;outline:none;background:var(--white);color:var(--text);font-family:'DM Sans',sans-serif;transition:border-color 0.2s;margin-bottom:14px}
+.inp:focus{border-color:var(--green)}
+.inp-otp{font-size:24px;font-weight:700;text-align:center;letter-spacing:10px;font-family:'Space Mono',monospace}
+/* demo-note removed */2px;color:var(--text3);text-align:center;margin-bottom:16px}
+
+.btn-grn{width:100%;padding:16px;background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;letter-spacing:0.5px;transition:background 0.2s;margin-bottom:10px}
+.btn-grn:active{background:#166a48}
+.btn-bdr{width:100%;padding:14px;background:transparent;color:var(--text);border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s}
+.btn-bdr:hover{border-color:var(--green);color:var(--green)}
+.vehicle-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.vehicle-opt{border:1.5px solid var(--border);border-radius:var(--r-sm);padding:16px 12px;text-align:center;cursor:pointer;transition:all 0.2s;background:var(--white)}
+.vehicle-opt.on{border-color:var(--green);background:var(--green-dim)}
+.vehicle-opt-icon{font-size:28px;margin-bottom:8px}
+.vehicle-opt-label{font-size:13px;font-weight:600;color:var(--text)}
+.vehicle-opt.on .vehicle-opt-label{color:var(--green)}
+.step-dots{display:flex;gap:6px;justify-content:center;margin-bottom:20px}
+.step-dot{width:6px;height:6px;border-radius:50%;background:var(--border)}
+.step-dot.on{background:var(--green);width:20px;border-radius:3px}
+.info-box{background:var(--green-dim);border:1px solid rgba(30,138,94,0.2);border-radius:var(--r-sm);padding:12px 14px;font-size:12px;color:var(--green);font-weight:600;margin-bottom:16px;line-height:1.5}
+#pending-screen{position:fixed;inset:0;max-width:430px;margin:0 auto;left:0;right:0;z-index:490;background:var(--white);display:none;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;left:0;right:0;margin:0 auto}
+.pending-icon{font-size:64px;margin-bottom:24px;animation:float 3s ease-in-out infinite}
+.pending-title{font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:2px;color:var(--text);margin-bottom:8px}
+.pending-sub{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:32px}
+.pending-steps{text-align:left;width:100%;background:var(--bg);border-radius:var(--r);padding:16px;margin-bottom:24px}
+.pending-step{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text2)}
+.pending-step:last-child{border-bottom:none}
+.pending-step-ico{width:28px;height:28px;border-radius:50%;background:var(--green-dim);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+#app{display:none;height:100%;flex-direction:column;background:#080808;width:100%;max-width:430px;margin:0 auto;position:relative;left:0;right:0}
+#app.on{display:flex}
+.page{display:none;flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:var(--nav);background:#080808;max-width:430px}
+.page.on{display:block}
+.page::-webkit-scrollbar{display:none}
+.bnav{max-width:430px;left:0;right:0;margin:0 auto;position:fixed;bottom:0;width:100%;height:var(--nav);background:var(--white);border-top:1px solid var(--border);display:flex;align-items:stretch;z-index:200;box-shadow:0 -2px 16px rgba(0,0,0,0.05)}
+.ni{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;position:relative}
+.ni-icon svg{width:24px;height:24px;stroke:var(--text3);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transition:stroke 0.15s}
+.ni-label{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:0.3px;transition:color 0.15s}
+.ni.on .ni-icon svg{stroke:var(--green)}
+.ni.on .ni-label{color:var(--green)}
+.home-hdr{background:var(--black);padding:20px 16px;color:#fff;position:relative;overflow:hidden}
+.home-hdr::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 80% 50%,rgba(30,138,94,0.15),transparent 60%)}
+.home-hdr-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;position:relative;z-index:1}
+.home-greeting{font-size:12px;color:rgba(255,255,255,0.4);font-family:'Space Mono',monospace;letter-spacing:1px}
+.home-name{font-size:20px;font-weight:700;color:#fff;margin-top:2px}
+.online-toggle{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:8px 14px;cursor:pointer;transition:all 0.2s}
+.online-toggle.on{background:rgba(30,138,94,0.2);border-color:rgba(30,138,94,0.4)}
+.online-dot{width:8px;height:8px;border-radius:50%;background:#666;transition:background 0.2s}
+.online-toggle.on .online-dot{background:var(--green);box-shadow:0 0 6px var(--green)}
+.online-label{font-size:13px;font-weight:700;color:rgba(255,255,255,0.6);letter-spacing:0.5px;font-family:'Space Mono',monospace}
+.online-toggle.on .online-label{color:#fff}
+.earnings-row{display:flex;gap:12px;position:relative;z-index:1}
+.earn-card{flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:var(--r-sm);padding:16px}
+.earn-val{font-family:'Bebas Neue',sans-serif;font-size:24px;color:#fff;letter-spacing:1px}
+.earn-val span{color:var(--green)}
+.earn-lbl{font-size:11px;color:rgba(255,255,255,0.35);font-family:'Space Mono',monospace;letter-spacing:1px;text-transform:uppercase;margin-top:2px}
+.sec-hdr{padding:0 16px;margin:18px 0 12px;display:flex;align-items:center;justify-content:space-between}
+.sec-title{font-size:14px;font-weight:800;color:var(--text);letter-spacing:1px;text-transform:uppercase}
+.sec-sub{font-size:12px;color:var(--text3)}
+.order-card{margin:0 16px 14px;background:var(--white);border-radius:var(--r);border:1px solid var(--border);overflow:hidden;box-shadow:var(--sh);cursor:pointer}
+.oc-top{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.oc-id{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--text)}
+.oc-chip{font-size:9px;font-weight:700;padding:3px 8px;border-radius:4px;font-family:'Space Mono',monospace;letter-spacing:0.5px}
+.chip-new{background:rgba(37,99,235,0.08);color:var(--blue)}
+.oc-body{padding:16px}
+.oc-store-row{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}
+.oc-store-ico{width:38px;height:38px;border-radius:10px;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.oc-store-name{font-size:15px;font-weight:700;color:var(--text)}
+.oc-store-addr{font-size:12px;color:var(--text3);margin-top:2px}
+.oc-divider{text-align:center;font-size:11px;color:var(--text3);padding:4px 0;margin:0 8px}
+.oc-items{font-size:12px;color:var(--text2);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+.oc-item-pill{display:inline-block;background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;color:var(--text2);margin:3px 3px 0 0}
+.oc-footer{padding:14px 16px;background:var(--bg);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.oc-amount{font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--text);letter-spacing:1px}
+.oc-earn{font-size:12px;color:var(--green);font-weight:700;font-family:'Space Mono',monospace}
+.accept-btn{background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif}
+.empty-state{text-align:center;padding:48px 24px;color:var(--text3)}
+.empty-ico{font-size:48px;margin-bottom:12px}
+.empty-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px}
+.empty-sub{font-size:13px;line-height:1.5}
+.offline-banner{margin:16px;background:var(--black);border-radius:var(--r);padding:16px;text-align:center;color:rgba(255,255,255,0.5);font-size:13px}
+.offline-banner b{color:#fff;display:block;font-size:15px;margin-bottom:4px}
+.active-order-banner{margin:12px 16px;background:var(--green);border-radius:var(--r);padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;box-shadow:0 4px 16px var(--green-glow)}
+.aob-pulse{width:10px;height:10px;border-radius:50%;background:#fff;animation:pulse 1.5s infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,255,255,0.4)}50%{box-shadow:0 0 0 6px rgba(255,255,255,0)}}
+.aob-text{flex:1;font-size:15px;font-weight:700;color:#fff}
+.aob-sub{font-size:12px;color:rgba(255,255,255,0.7);margin-top:2px}
+.earn-hdr{background:var(--black);padding:20px 16px 24px;position:relative;overflow:hidden}
+.earn-hdr::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 100%,rgba(30,138,94,0.2),transparent 60%)}
+.earn-hero{text-align:center;position:relative;z-index:1}
+.earn-hero-lbl{font-size:11px;color:rgba(255,255,255,0.4);font-family:'Space Mono',monospace;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
+.earn-hero-val{font-family:'Bebas Neue',sans-serif;font-size:56px;color:#fff;letter-spacing:2px;line-height:1}
+.earn-hero-val span{color:var(--green)}
+.earn-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:16px 16px 0;position:relative;z-index:1}
+.earn-stat{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:var(--r-sm);padding:12px;text-align:center}
+.earn-stat-val{font-family:'Bebas Neue',sans-serif;font-size:24px;color:#fff;letter-spacing:1px}
+.earn-stat-lbl{font-size:10px;color:rgba(255,255,255,0.3);font-family:'Space Mono',monospace;letter-spacing:1px;text-transform:uppercase;margin-top:2px}
+.payout-card{margin:16px;background:var(--white);border-radius:var(--r);border:1px solid var(--border);padding:20px;box-shadow:var(--sh)}
+.payout-title{font-size:11px;font-weight:800;color:var(--text);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px}
+.payout-upi{display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg);border-radius:var(--r-sm);border:1px solid var(--border);margin-bottom:12px}
+.payout-upi-ico{width:36px;height:36px;border-radius:9px;background:var(--green-dim);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.payout-upi-id{font-size:13px;font-weight:600;color:var(--text);font-family:'Space Mono',monospace}
+.payout-upi-lbl{font-size:10px;color:var(--text3);margin-top:2px}
+.payout-btn{width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif}
+.dh-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+.dh-item:last-child{border-bottom:none}
+.dh-ico{width:36px;height:36px;border-radius:9px;background:var(--green-dim);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.dh-info{flex:1}
+.dh-id{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--text)}
+.dh-meta{font-size:13px;color:var(--text3);margin-top:2px}
+.dh-earn{font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--green);letter-spacing:1px}
+.prof-card{margin:0 16px;background:var(--green);border-radius:var(--r);padding:20px;display:flex;align-items:center;gap:14px;position:relative;z-index:1;margin-top:-20px;box-shadow:0 4px 16px var(--green-glow)}
+.prof-av{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.35);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.prof-name{font-size:16px;font-weight:800;color:#fff}
+.prof-phone{font-size:13px;color:rgba(255,255,255,0.7);margin-top:2px;font-family:'Space Mono',monospace}
+.prof-vehicle{display:inline-block;background:rgba(255,255,255,0.15);border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700;color:#fff;margin-top:4px;font-family:'Space Mono',monospace;letter-spacing:0.5px}
+.status-card{margin:14px 16px;border-radius:var(--r);padding:14px 16px;display:flex;align-items:center;gap:12px;border:1px solid}
+.status-card.approved{background:var(--green-dim);border-color:rgba(30,138,94,0.2)}
+.prof-menu{margin:0 16px 16px;background:var(--white);border-radius:var(--r);border:1px solid var(--border);overflow:hidden;box-shadow:var(--sh)}
+.mi{display:flex;align-items:center;gap:14px;padding:18px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s}
+.mi:last-child{border-bottom:none}
+.mi:hover{background:var(--bg)}
+.mi-ico{width:40px;height:40px;border-radius:10px;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.mi-title{font-size:15px;font-weight:600;color:var(--text)}
+.mi-sub{font-size:12px;color:var(--text3);margin-top:1px}
+.mi-arr{margin-left:auto;font-size:16px;color:var(--text3)}
+.logout-row{padding:16px;cursor:pointer}
+.logout-row span{font-size:13px;font-weight:600;color:var(--red)}
+.ver-txt{padding:0 16px 32px;font-size:11px;color:var(--text3);font-family:'Space Mono',monospace}
+.panel{max-width:430px;left:0;right:0;margin:0 auto;position:fixed;inset:0;z-index:300;display:none;flex-direction:column;background:var(--white)}
+.panel.on{display:flex;animation:pslide 0.28s cubic-bezier(0.16,1,0.3,1)}
+@keyframes pslide{from{transform:translateX(100%)}to{transform:translateX(0)}}
+.panel-hdr{padding:14px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);background:var(--white);flex-shrink:0}
+.back-btn{width:36px;height:36px;border-radius:50%;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.back-btn svg{width:18px;height:18px;stroke:var(--text);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.panel-title{font-size:17px;font-weight:800;color:var(--text)}
+.panel-body{flex:1;overflow-y:auto}
+.panel-body::-webkit-scrollbar{display:none}
+.od-hero{background:var(--black);padding:20px 16px;color:#fff;position:relative;overflow:hidden}
+.od-hero::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 80% 50%,rgba(30,138,94,0.12),transparent 60%)}
+.od-id{font-family:'Space Mono',monospace;font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:4px;position:relative;z-index:1}
+.od-status{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;color:#fff;position:relative;z-index:1}
+.od-amount{font-family:'Bebas Neue',sans-serif;font-size:40px;color:var(--green);letter-spacing:2px;position:relative;z-index:1}
+.od-earn-row{display:flex;align-items:center;gap:8px;margin-top:4px;position:relative;z-index:1}
+.od-earn-lbl{font-size:11px;color:rgba(255,255,255,0.4);font-family:'Space Mono',monospace}
+.od-earn-val{font-size:13px;color:var(--green);font-weight:700;font-family:'Space Mono',monospace}
+.route-card{margin:16px;background:var(--white);border-radius:var(--r);border:1px solid var(--border);overflow:hidden;box-shadow:var(--sh)}
+.route-stop{padding:18px 16px;display:flex;align-items:flex-start;gap:14px}
+.route-stop:not(:last-child){border-bottom:1px dashed var(--border)}
+.route-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.route-dot.store{background:var(--gold)}
+.route-dot.customer{background:var(--green)}
+.route-stop-type{font-size:11px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px}
+.route-stop-name{font-size:15px;font-weight:700;color:var(--text)}
+.route-stop-addr{font-size:13px;color:var(--text3);margin-top:2px}
+.route-nav-btn{margin-left:auto;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;color:var(--text);cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;flex-shrink:0}
+.items-section{margin:0 16px 20px}
+.items-title{font-size:11px;font-weight:800;color:var(--text);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px}
+.order-item-row{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border)}
+.order-item-row:last-child{border-bottom:none}
+.oir-img{width:52px;height:66px;border-radius:var(--r-sm);background:var(--bg2);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px}
+.oir-img img{width:100%;height:100%;object-fit:cover}
+.oir-name{font-size:14px;font-weight:600;color:var(--text)}
+.oir-meta{font-size:12px;color:var(--text3);margin-top:2px}
+.oir-price{font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--text);letter-spacing:1px;margin-left:auto;flex-shrink:0}
+.action-bar{padding:16px;background:var(--white);border-top:1px solid var(--border);flex-shrink:0}
+.action-btn-main{width:100%;padding:18px;background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);font-size:16px;font-weight:800;cursor:pointer;font-family:'DM Sans',sans-serif;letter-spacing:0.5px;transition:background 0.2s}
+.action-btn-main:active{background:#166a48}
+.action-btn-sec{width:100%;padding:13px;background:transparent;color:var(--text);border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:8px}
+
+
+
+.tb-hdr::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 80% 50%,rgba(30,138,94,0.15),transparent 60%)}
+.tb-hdr-top{display:flex;align-items:center;gap:12px;margin-bottom:12px;position:relative;z-index:1}
+.tb-back{width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.tb-back svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tb-hdr-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:#fff}
+
+
+.tb-timer.urgent{color:var(--red);animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.4}}
+.tb-timer-lbl{font-size:10px;color:rgba(255,255,255,0.4);letter-spacing:2px;text-transform:uppercase;margin-top:4px;font-family:'Space Mono',monospace}
+
+.tb-progress-fill{height:100%;background:var(--green);border-radius:2px;transition:width 1s linear}
+
+.tb-body::-webkit-scrollbar{display:none}
+
+
+.tb-item.kept{border-color:var(--green);background:var(--green-dim)}
+.tb-item.returned{border-color:var(--red);background:var(--red-dim)}
+.tb-item-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.tb-item-img{width:52px;height:64px;border-radius:var(--r-sm);background:var(--bg2);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px}
+.tb-item-img img{width:100%;height:100%;object-fit:cover}
+.tb-item-name{font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px}
+.tb-item-meta{font-size:11px;color:var(--text3)}
+.tb-item-price{font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--text);margin-left:auto;flex-shrink:0;letter-spacing:1px}
+.tb-item-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+
+.tb-item.returned .tb-return-btn{background:var(--red);color:#fff}
+.tb-item.kept .tb-keep-btn{background:#166a48}
+
+.tb-sum-row{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;color:var(--text2)}
+.tb-sum-total{display:flex;justify-content:space-between;font-size:15px;font-weight:800;padding:10px 0;border-top:1px solid var(--border);margin-top:4px}
+.tb-sum-refund{display:flex;justify-content:space-between;font-size:14px;font-weight:700;color:var(--red);padding:5px 0}
+
+.tb-complete-btn:disabled{background:var(--border2);cursor:not-allowed}
+#complete-overlay{position:fixed;inset:0;z-index:500;background:var(--black);display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px;left:0;right:0;margin:0 auto}
+#complete-overlay.on{display:flex;animation:fadeIn 0.4s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.complete-icon{font-size:72px;margin-bottom:20px;animation:pop 0.5s cubic-bezier(0.34,1.56,0.64,1)}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+.complete-title{font-family:'Bebas Neue',sans-serif;font-size:40px;letter-spacing:3px;color:#fff;margin-bottom:8px}
+.complete-earn{font-family:'Bebas Neue',sans-serif;font-size:60px;color:var(--green);letter-spacing:2px;line-height:1}
+.complete-earn-lbl{font-size:12px;color:rgba(255,255,255,0.4);font-family:'Space Mono',monospace;letter-spacing:2px;text-transform:uppercase;margin-top:4px;margin-bottom:24px}
+.complete-details{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:var(--r);padding:16px;width:100%;margin-bottom:24px;text-align:left}
+.cd-row{display:flex;justify-content:space-between;font-size:14px;padding:5px 0;color:rgba(255,255,255,0.5)}
+.cd-row b{color:#fff}
+.complete-btn{width:100%;padding:16px;background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);font-size:15px;font-weight:800;cursor:pointer;font-family:'DM Sans',sans-serif;letter-spacing:0.5px}
+.toast{position:fixed;top:80px;background:var(--black);color:#fff;padding:11px 20px;border-radius:var(--r-sm);font-size:13px;font-weight:600;z-index:9999;display:none;box-shadow:var(--sh-md);max-width:300px;text-align:center;animation:tslide 0.25s ease}
+@keyframes tslide{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
+.spin{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:sp 0.7s linear infinite;margin:40px auto}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.doc-upload-row{display:flex;align-items:center;gap:12px;padding:14px;background:var(--bg);border:1.5px dashed var(--border);border-radius:var(--r-sm);cursor:pointer;margin-bottom:10px;transition:border-color 0.2s}
+.doc-upload-row:hover{border-color:var(--green)}
+.doc-upload-row input[type=file]{display:none}
+.doc-ico{width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.doc-ico svg{width:18px;height:18px;stroke:var(--text3)}
+.doc-info{flex:1}
+.doc-name{font-size:13px;font-weight:600;color:var(--text)}
+.doc-status{font-size:11px;color:var(--text3);margin-top:2px}
+.doc-check{width:24px;height:24px;border-radius:50%;background:rgba(30,138,94,0.1);display:none;align-items:center;justify-content:center;flex-shrink:0}
+.doc-check svg{width:13px;height:13px;stroke:var(--green)}
+.doc-check.done{display:flex}
+.info-box{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;font-size:12px;color:var(--text2);line-height:1.6;display:flex;align-items:flex-start;gap:8px;margin-bottom:16px}
+.info-box svg{width:16px;height:16px;flex-shrink:0;margin-top:2px;stroke:var(--text3)}
+
+/* ── SKELETON LOADERS ── */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skel {
+  background: linear-gradient(90deg, var(--card,#1a1a1a) 25%, var(--card2,#222) 50%, var(--card,#1a1a1a) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 4px;
+}
+.skel-line-lg { height: 14px; width: 70%; }
+.skel-line-md { height: 11px; width: 50%; }
+.skel-line-sm { height: 9px; width: 35%; }
+.skel-order {
+  margin: 10px 16px;
+  background: var(--card,#1a1a1a);
+  border-radius: var(--r);
+  border: 1px solid var(--border,rgba(255,255,255,0.08));
+  overflow: hidden;
+}
+.skel-order-top {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border,rgba(255,255,255,0.08));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.skel-order-body {
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.skel-prod-img {
+  width: 48px;
+  height: 60px;
+  border-radius: var(--r-sm);
+  flex-shrink: 0;
+}
+.skel-card {
+  background: var(--card,#1a1a1a);
+  border-radius: var(--r);
+  border: 1px solid var(--border,rgba(255,255,255,0.08));
+  overflow: hidden;
+  display: flex;
+}
+.skel-card-img { width: 90px; height: 90px; flex-shrink: 0; }
+.skel-card-body { padding: 14px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.skel-grid-item { background: var(--card,#1a1a1a); border: 1px solid var(--border,rgba(255,255,255,0.08)); border-radius: var(--r-sm); overflow: hidden; }
+.skel-grid-img { width: 100%; aspect-ratio: 1/1; }
+.skel-grid-info { padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+
+</style>
+</head>
+<body>
+<div class="toast" id="toast"></div>
+
+<!-- INTRO -->
+<div id="intro">
+  <div class="ig"></div><div class="iglow"></div>
+  <div class="i-moto"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="19" cy="17" r="3"/><circle cx="5" cy="17" r="3"/><path d="M12 17H8L5 9h6l2 4h3l2-4h2l-2 5"/></svg></div>
+  <div class="i-logo">DRIP<b>'D</b></div>
+  <div class="i-sub">Delivery Partner</div>
+  <div class="i-prog">
+    <div class="i-track"><div class="i-fill" id="ifill"></div></div>
+    <div class="i-pct" id="ipct">0%</div>
+  </div>
+</div>
+
+<!-- AUTH -->
+<div id="auth-overlay">
+  <div class="ah">
+    <div class="ah-logo">DRIP<b>'D</b></div>
+    <div class="ah-badge">Delivery Partner App</div>
+  </div>
+  <div class="ab">
+    <!-- Step 1: Phone -->
+    <div class="astep on" id="s-phone">
+      <div class="step-dots"><div class="step-dot on"></div><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot"></div></div>
+      <div class="at">What's your number?</div>
+      <div class="as">We'll send a one-time password to verify your identity.</div>
+      <label class="lbl">Phone Number</label>
+      <input class="inp" id="inp-phone" type="tel" placeholder="+91 98765 43210" maxlength="13">
+      <button class="btn-grn" onclick="sendOTP()">GET OTP</button>
+    </div>
+    <!-- Step 2: OTP -->
+    <div class="astep" id="s-otp">
+      <div class="step-dots"><div class="step-dot on"></div><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot"></div></div>
+      <div class="at">Enter OTP</div>
+      <div class="as" id="otp-sent-msg">Sent to your number</div>
+      <label class="lbl">6-Digit OTP</label>
+      <input class="inp inp-otp" id="inp-otp" type="tel" placeholder="— — — — — —" maxlength="6" oninput="if(this.value.length===6)verifyOTP()">
+      
+      <button class="btn-grn" onclick="verifyOTP()">VERIFY & CONTINUE</button>
+      <button class="btn-bdr" onclick="gotoStep('s-phone')" style="margin-top:8px">Change Number</button>
+    </div>
+    <!-- Step 3: Personal Details -->
+    <div class="astep" id="s-details">
+      <div class="step-dots"><div class="step-dot"></div><div class="step-dot on"></div><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot"></div></div>
+      <div class="at">Tell us about yourself</div>
+      <div class="as">This helps us match you with nearby deliveries.</div>
+      <label class="lbl">Full Name</label>
+      <input class="inp" id="inp-name" placeholder="Enter your full name">
+      <label class="lbl">Delivery Area</label>
+      <input class="inp" id="inp-area" placeholder="e.g. Sector 29, Gurgaon">
+      <label class="lbl">Vehicle Type</label>
+      <div class="vehicle-grid">
+        <div class="vehicle-opt on" id="v-bike" onclick="selectVehicle('Bike')"><div class="vehicle-opt-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div><div class="vehicle-opt-label">Bike</div></div>
+        <div class="vehicle-opt" id="v-scooter" onclick="selectVehicle('Scooter')"><div class="vehicle-opt-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="19" cy="17" r="3"/><circle cx="5" cy="17" r="3"/><path d="M12 17H8L5 9h6l2 4h3l2-4h2l-2 5"/></svg></div><div class="vehicle-opt-label">Scooter</div></div>
+        <div class="vehicle-opt" id="v-cycle" onclick="selectVehicle('Cycle')"><div class="vehicle-opt-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-3 2 3h2"/></svg></div><div class="vehicle-opt-label">Cycle</div></div>
+        <div class="vehicle-opt" id="v-ev" onclick="selectVehicle('EV')"><div class="vehicle-opt-icon">⚡</div><div class="vehicle-opt-label">EV Scooter</div></div>
+      </div>
+      <button class="btn-grn" onclick="gotoStep('s-upi')">CONTINUE</button>
+    </div>
+    <!-- Step 4: UPI -->
+    <div class="astep" id="s-upi">
+      <div class="step-dots"><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot on"></div><div class="step-dot"></div><div class="step-dot"></div></div>
+      <div class="at">Payout Details</div>
+      <div class="as">Your earnings are transferred to this UPI ID every week, every Monday.</div>
+      <div class="info-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M17 12h.01M7 12h.01"/></svg> Earn ₹40–₹80 per delivery + surge bonuses during peak hours.</div>
+      <label class="lbl">UPI ID</label>
+      <input class="inp" id="inp-upi" placeholder="yourname@upi" style="font-family:'Space Mono',monospace">
+      <label class="lbl">Account Holder Name</label>
+      <input class="inp" id="inp-acname" placeholder="Name as on bank account">
+      <button class="btn-grn" onclick="gotoStep('s-kyc')">CONTINUE</button>
+    </div>
+  </div>
+
+  <!-- KYC Step -->
+  <div class="astep" id="s-kyc">
+    <div class="step-dots"><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot on"></div><div class="step-dot"></div></div>
+    <div class="at">KYC Verification</div>
+    <div class="as">Required for account verification. Same as Swiggy / Porter requirements.</div>
+
+    <div class="info-box">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Documents are securely stored for identity verification only. Never shared with third parties.
+    </div>
+
+    <label class="lbl">Aadhaar Number <span style="color:var(--green)">*</span></label>
+    <input class="inp" id="kyc-aadhaar" placeholder="XXXX XXXX XXXX" maxlength="14" type="tel">
+
+    <label class="lbl">PAN Card Number <span style="color:var(--green)">*</span></label>
+    <input class="inp" id="kyc-pan" placeholder="ABCDE1234F" maxlength="10" style="text-transform:uppercase">
+
+    <label class="lbl">Driving License Number <span style="color:var(--green)">*</span></label>
+    <input class="inp" id="kyc-dl" placeholder="e.g. DL0420110149646">
+
+    <label class="lbl">Vehicle Registration Number <span style="color:var(--green)">*</span></label>
+    <input class="inp" id="kyc-vehicle-reg" placeholder="e.g. DL01AB1234">
+
+    <label class="lbl">Upload Aadhaar Card <span style="color:var(--green)">*</span></label>
+    <div class="doc-upload-row" onclick="document.getElementById('kyc-doc-aadhaar').click()">
+      <input type="file" id="kyc-doc-aadhaar" accept="image/*,application/pdf" onchange="partnerDocUploaded(this,'kyc-status-aadhaar','kyc-check-aadhaar')">
+      <div class="doc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+      <div class="doc-info"><div class="doc-name">Aadhaar Card</div><div class="doc-status" id="kyc-status-aadhaar">Tap to upload</div></div>
+      <div class="doc-check" id="kyc-check-aadhaar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
+    </div>
+
+    <label class="lbl">Upload Driving License <span style="color:var(--green)">*</span></label>
+    <div class="doc-upload-row" onclick="document.getElementById('kyc-doc-dl').click()">
+      <input type="file" id="kyc-doc-dl" accept="image/*,application/pdf" onchange="partnerDocUploaded(this,'kyc-status-dl','kyc-check-dl')">
+      <div class="doc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+      <div class="doc-info"><div class="doc-name">Driving License</div><div class="doc-status" id="kyc-status-dl">Tap to upload</div></div>
+      <div class="doc-check" id="kyc-check-dl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
+    </div>
+
+    <label class="lbl">Upload Vehicle RC <span style="color:var(--green)">*</span></label>
+    <div class="doc-upload-row" onclick="document.getElementById('kyc-doc-rc').click()">
+      <input type="file" id="kyc-doc-rc" accept="image/*,application/pdf" onchange="partnerDocUploaded(this,'kyc-status-rc','kyc-check-rc')">
+      <div class="doc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div>
+      <div class="doc-info"><div class="doc-name">Vehicle RC (Registration Certificate)</div><div class="doc-status" id="kyc-status-rc">Tap to upload</div></div>
+      <div class="doc-check" id="kyc-check-rc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
+    </div>
+
+    <div style="background:rgba(255,255,255,0.04);border:1px solid var(--border2);border-radius:var(--r-sm);padding:14px;margin:16px 0;font-size:12px;color:var(--text2);line-height:1.6">
+      By completing registration I confirm all documents are genuine and agree to Drip'd partner terms and conditions.
+    </div>
+
+    <button class="btn-grn" onclick="completeReg()">SUBMIT APPLICATION</button>
+    <button onclick="gotoStep('s-upi')" style="width:100%;padding:12px;background:transparent;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px;color:var(--text2);margin-top:8px;cursor:pointer;font-family:'DM Sans',sans-serif">Back</button>
+  </div>
+</div>
+
+<!-- PENDING -->
+<div id="pending-screen">
+  <div class="pending-icon">⏳</div>
+  <div class="pending-title">Application Submitted!</div>
+  <div class="pending-sub">Our team will verify your details and approve your account within 24–48 hours. You'll get an SMS once approved.</div>
+  <div class="pending-steps">
+    <div class="pending-step"><div class="pending-step-ico">✅</div><span>Application submitted</span></div>
+    <div class="pending-step"><div class="pending-step-ico"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div><span>Background verification (24–48 hrs)</span></div>
+    <div class="pending-step"><div class="pending-step-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></div><span>SMS notification on approval</span></div>
+    <div class="pending-step"><div class="pending-step-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="19" cy="17" r="3"/><circle cx="5" cy="17" r="3"/><path d="M12 17H8L5 9h6l2 4h3l2-4h2l-2 5"/></svg></div><span>Start delivering and earning!</span></div>
+  </div>
+  <button class="btn-grn" onclick="checkApproval()">CHECK STATUS</button>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <!-- HOME -->
+  <div class="page on" id="pg-home">
+    <div class="home-hdr">
+      <div class="home-hdr-top">
+        <div>
+          <div class="home-greeting" id="home-greeting">GOOD MORNING</div>
+          <div class="home-name" id="home-name">Partner</div>
+        </div>
+        <div class="online-toggle" id="online-toggle" onclick="toggleOnline()">
+          <div class="online-dot" id="online-dot"></div>
+          <div class="online-label" id="online-label">OFFLINE</div>
+        </div>
+      </div>
+      <div class="earnings-row">
+        <div class="earn-card"><div class="earn-val">₹<span id="today-earn">0</span></div><div class="earn-lbl">Today</div></div>
+        <div class="earn-card"><div class="earn-val"><span id="today-orders">0</span></div><div class="earn-lbl">Deliveries</div></div>
+        <div class="earn-card"><div class="earn-val"><span id="today-rating">—</span></div><div class="earn-lbl">Rating</div></div>
+      </div>
+    </div>
+    <div id="active-order-wrap"></div>
+    <div id="home-content">
+      <div class="offline-banner"><b>You're Offline</b>Toggle Online above to start receiving delivery requests</div>
+    </div>
+  </div>
+
+  <!-- EARNINGS -->
+  <div class="page" id="pg-earnings">
+    <div class="earn-hdr">
+      <div class="earn-hero">
+        <div class="earn-hero-lbl">Total Earned</div>
+        <div class="earn-hero-val">₹<span id="total-earned">0</span></div>
+      </div>
+      <div class="earn-stats">
+        <div class="earn-stat"><div class="earn-stat-val" id="stat-deliveries">0</div><div class="earn-stat-lbl">Deliveries</div></div>
+        <div class="earn-stat"><div class="earn-stat-val" id="stat-this-week">₹0</div><div class="earn-stat-lbl">This Week</div></div>
+        <div class="earn-stat"><div class="earn-stat-val" id="stat-rating">—</div><div class="earn-stat-lbl">Rating</div></div>
+      </div>
+    </div>
+    <div class="payout-card" style="margin-top:16px">
+      <div class="payout-title">Payout Details</div>
+      <div class="payout-upi">
+        <div class="payout-upi-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M17 12h.01M7 12h.01"/></svg></div>
+        <div>
+          <div class="payout-upi-id" id="payout-upi-display">—</div>
+          <div class="payout-upi-lbl">UPI ID · Paid every Monday</div>
+        </div>
+      </div>
+      <button class="payout-btn" onclick="requestPayout()">REQUEST PAYOUT</button>
+    </div>
+    <div style="margin:0 16px 16px">
+      <div style="font-size:11px;font-weight:800;color:var(--text);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;margin-top:4px">Delivery History</div>
+      <div id="delivery-history-list">
+        <div class="empty-state"><div class="empty-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div class="empty-title">No deliveries yet</div><div class="empty-sub">Complete your first delivery to see history here</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="page" id="pg-profile">
+    <div style="height:120px;background:var(--black);position:relative;overflow:hidden">
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 30% 50%,rgba(30,138,94,0.2),transparent 60%)"></div>
+    </div>
+    <div class="prof-card">
+      <div class="prof-av"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="19" cy="17" r="3"/><circle cx="5" cy="17" r="3"/><path d="M12 17H8L5 9h6l2 4h3l2-4h2l-2 5"/></svg></div>
+      <div>
+        <div class="prof-name" id="prof-name">PARTNER</div>
+        <div class="prof-phone" id="prof-phone">—</div>
+        <div class="prof-vehicle" id="prof-vehicle">BIKE</div>
+      </div>
+    </div>
+    <div class="status-card approved" style="margin-top:14px">
+      <div style="font-size:22px">✅</div>
+      <div><div style="font-size:13px;font-weight:700;color:var(--text)">Account Approved</div><div style="font-size:11px;color:var(--text3);margin-top:2px">You're verified and ready to deliver</div></div>
+    </div>
+    <div style="height:4px"></div>
+    <div class="prof-menu">
+      <div class="mi" onclick="showPage('pg-earnings')"><div class="mi-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div><div class="mi-title">My Earnings</div><div class="mi-sub">View payouts and history</div></div><div class="mi-arr">›</div></div>
+      <div class="mi" onclick="editUPI()"><div class="mi-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M17 12h.01M7 12h.01"/></svg></div><div><div class="mi-title">Update UPI ID</div><div class="mi-sub" id="profile-upi-display">—</div></div><div class="mi-arr">›</div></div>
+      <div class="mi" onclick="toast('Support: getdripd1@gmail.com')"><div class="mi-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div><div><div class="mi-title">Support</div><div class="mi-sub">Get help from our team</div></div><div class="mi-arr">›</div></div>
+      <div class="mi" onclick="toast('Guidelines coming soon')"><div class="mi-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div><div><div class="mi-title">Partner Guidelines</div><div class="mi-sub">Rules, tips & best practices</div></div><div class="mi-arr">›</div></div>
+    </div>
+    <div class="logout-row" onclick="doLogout()"><span>Logout</span></div>
+    <div class="ver-txt">Partner App v1.0.0 · getdripd.in</div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bnav">
+    <div class="ni on" id="ni-home" onclick="showPage('pg-home')">
+      <div class="ni-icon"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+      <div class="ni-label">Home</div>
+    </div>
+    <div class="ni" id="ni-earnings" onclick="showPage('pg-earnings')">
+      <div class="ni-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+      <div class="ni-label">Earnings</div>
+    </div>
+    <div class="ni" id="ni-profile" onclick="showPage('pg-profile')">
+      <div class="ni-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+      <div class="ni-label">Profile</div>
+    </div>
+  </nav>
+</div>
+
+<!-- ORDER DETAIL PANEL -->
+<div class="panel" id="order-panel">
+  <div class="panel-hdr" style="background:var(--black);border-color:rgba(255,255,255,0.1)">
+    <div class="back-btn" onclick="closePanel('order-panel')" style="border-color:rgba(255,255,255,0.2)"><svg viewBox="0 0 24 24" style="stroke:#fff"><polyline points="15 18 9 12 15 6"/></svg></div>
+    <div class="panel-title" style="color:#fff">Order Details</div>
+  </div>
+  <div class="panel-body">
+    <div class="od-hero">
+      <div class="od-id" id="od-id">#ORDER</div>
+      <div class="od-status" id="od-status">NEW ORDER</div>
+      <div class="od-amount" id="od-amount">₹0</div>
+      <div class="od-earn-row">
+        <div class="od-earn-lbl">YOUR EARNING:</div>
+        <div class="od-earn-val" id="od-earn">₹0</div>
+      </div>
+    </div>
+    <div class="route-card">
+      <div class="route-stop">
+        <div class="route-dot store"></div>
+        <div style="flex:1">
+          <div class="route-stop-type">Pickup from Store</div>
+          <div class="route-stop-name" id="od-store-name">Store Name</div>
+          <div class="route-stop-addr" id="od-store-addr">Store Address</div>
+        </div>
+        <button class="route-nav-btn" onclick="navigateTo('store')"> Navigate</button>
+      </div>
+      <div class="route-stop">
+        <div class="route-dot customer"></div>
+        <div style="flex:1">
+          <div class="route-stop-type">Deliver to Customer</div>
+          <div class="route-stop-name" id="od-customer-name">Customer</div>
+          <div class="route-stop-addr" id="od-customer-addr">Customer Address</div>
+        </div>
+        <button class="route-nav-btn" onclick="navigateTo('customer')"> Navigate</button>
+      </div>
+    </div>
+    <div style="margin:0 16px 12px;background:var(--green-dim);border:1px solid rgba(30,138,94,0.2);border-radius:var(--r-sm);padding:12px 14px;display:flex;align-items:center;gap:10px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.57a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.57a2 2 0 0 0-1.34-2.23z"/></svg>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--green)">Try &amp; Buy — FREE</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">Wait 30 mins at customer door. Mark keeps/returns in the Try &amp; Buy screen.</div>
+      </div>
+    </div>
+    <div class="items-section">
+      <div class="items-title">Order Items</div>
+      <div id="od-items-list"></div>
+    </div>
+  </div>
+  <div class="action-bar" id="order-action-bar">
+    <button class="action-btn-main" id="order-main-btn" onclick="handleOrderAction()">ACCEPT ORDER</button>
+    <button class="action-btn-sec" id="order-sec-btn" onclick="closePanel('order-panel')">Maybe Later</button>
+  </div>
+</div>
+
+<!-- COMPLETION -->
+<div id="complete-overlay">
+  <div class="complete-icon">✅</div>
+  <div class="complete-title">ORDER DONE!</div>
+  <div class="complete-earn" id="complete-earn">₹0</div>
+  <div class="complete-earn-lbl">Earned on this delivery</div>
+  <div class="complete-details" id="complete-details"></div>
+  <button class="complete-btn" onclick="closeCompletion()">BACK TO DASHBOARD</button>
+</div>
+
+<script>
+const API = 'https://web-production-2dcf58.up.railway.app';
+const BASE_EARNING = 60;
+
+let partner = null, isOnline = false, activeOrder = null;
+let currentOrderState = 'new';
+
+let deliveryHistory = [], todayEarnings = 0, todayDeliveries = 0;
+let vehicleType = 'Bike', currentOrderData = null;
+
+try { partner = JSON.parse(localStorage.getItem('dd_partner') || 'null'); } catch(e) {}
+try { deliveryHistory = JSON.parse(localStorage.getItem('dd_history') || '[]'); } catch(e) {}
+try { todayEarnings = parseInt(localStorage.getItem('dd_today_earn') || '0'); } catch(e) {}
+try { todayDeliveries = parseInt(localStorage.getItem('dd_today_del') || '0'); } catch(e) {}
+
+// INTRO
+let pct = 0;
+const fillEl = document.getElementById('ifill');
+const pctEl = document.getElementById('ipct');
+const tick = setInterval(() => {
+  pct = Math.min(100, pct + Math.random() * 20);
+  const r = Math.round(pct);
+  fillEl.style.width = r + '%';
+  pctEl.textContent = r + '%';
+  if (pct >= 100) { clearInterval(tick); setTimeout(startApp, 400); }
+}, 140);
+
+function startApp() {
+  document.getElementById('intro').style.animation = 'iout 0.45s ease forwards';
+  setTimeout(() => {
+    document.getElementById('intro').style.display = 'none';
+    if (partner) {
+      if (partner.status === 'pending') showPending();
+      else showApp();
+    } else {
+      document.getElementById('auth-overlay').style.display = 'flex';
+    }
+  }, 450);
+}
+
+// AUTH
+function gotoStep(id) {
+  document.querySelectorAll('.astep').forEach(s => s.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+}
+
+function selectVehicle(type) {
+  vehicleType = type;
+  document.querySelectorAll('.vehicle-opt').forEach(v => v.classList.remove('on'));
+  const map = {Bike:'v-bike',Scooter:'v-scooter',Cycle:'v-cycle',EV:'v-ev'};
+  document.getElementById(map[type])?.classList.add('on');
+}
+
+async function sendOTP() {
+  const phone = document.getElementById('inp-phone').value.trim();
+  if (!phone || phone.replace(/\D/g,'').length < 10) { toast('Enter a valid phone number'); return; }
+  document.getElementById('inp-otp').value = '';
+  const btn = event.target; btn.textContent = 'SENDING...'; btn.disabled = true;
+  try {
+    const otpRes = await fetch(`${API}/otp/send`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone})});
+    const otpData = await otpRes.json();
+    if (otpData.otp) {
+      toast('Your OTP is: ' + otpData.otp);
+    } else {
+      toast('OTP sent to ' + phone);
+    }
+  } catch(e) { toast('OTP sent to your number!'); }
+  document.getElementById('otp-sent-msg').textContent = 'OTP sent to ' + phone;
+  gotoStep('s-otp');
+  document.getElementById('inp-otp').focus();
+  btn.textContent = 'GET OTP'; btn.disabled = false;
+}
+
+async function verifyOTP() {
+  const phone = document.getElementById('inp-phone').value.trim();
+  const otp = document.getElementById('inp-otp').value.trim();
+  if (otp.length < 6) { toast('Enter the 6-digit OTP'); return; }
+  try {
+    const r = await fetch(`${API}/partners/${phone}`);
+    const d = await r.json();
+    if (d.exists) {
+      partner = d.partner;
+      localStorage.setItem('dd_partner', JSON.stringify(partner));
+      document.getElementById('auth-overlay').style.display = 'none';
+      if (partner.status === 'pending') showPending();
+      else { showApp(); toast('Welcome back, ' + partner.name + '!'); }
+      return;
+    }
+  } catch(e) {}
+  gotoStep('s-details');
+}
+
+async function completeReg() {
+  const name = document.getElementById('inp-name').value.trim();
+  const area = document.getElementById('inp-area').value.trim();
+  const upi = document.getElementById('inp-upi').value.trim();
+  const acname = document.getElementById('inp-acname').value.trim();
+  const phone = document.getElementById('inp-phone').value.trim();
+  if (!name) { toast('Enter your name'); return; }
+  if (!upi) { toast('Enter your UPI ID'); return; }
+  if (!acname) { toast('Enter account holder name'); return; }
+  try {
+    const r = await fetch(`${API}/partners/register`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name,phone,area,vehicle_type:vehicleType,upi_id:upi,account_name:acname})});
+    const d = await r.json();
+    if (d.success) {
+      partner = d.partner;
+      localStorage.setItem('dd_partner', JSON.stringify(partner));
+      document.getElementById('auth-overlay').style.display = 'none';
+      showPending();
+    } else { toast(d.error || 'Registration failed'); }
+  } catch(e) {
+    // Offline fallback
+    partner = {name,phone,area,vehicle_type:vehicleType,upi_id:upi,account_name:acname,status:'approved',id:'local_'+Date.now()};
+    localStorage.setItem('dd_partner', JSON.stringify(partner));
+    document.getElementById('auth-overlay').style.display = 'none';
+    showApp();
+    toast('Welcome to Drip\'d, ' + name + '!');
+  }
+}
+
+function showPending() {
+  document.getElementById('pending-screen').style.display = 'flex';
+}
+
+async function checkApproval() {
+  if (!partner) return;
+  try {
+    const r = await fetch(`${API}/partners/${partner.phone}`);
+    const d = await r.json();
+    if (d.exists && d.partner.status === 'approved') {
+      partner = d.partner;
+      localStorage.setItem('dd_partner', JSON.stringify(partner));
+      document.getElementById('pending-screen').style.display = 'none';
+      showApp(); toast('Account approved! Start delivering!');
+    } else { toast('Still pending. We\'ll SMS you when approved!'); }
+  } catch(e) {
+    partner.status = 'approved';
+    localStorage.setItem('dd_partner', JSON.stringify(partner));
+    document.getElementById('pending-screen').style.display = 'none';
+    showApp(); toast('Account approved! Start delivering!');
+  }
+}
+
+function showApp() {
+  document.getElementById('auth-overlay').style.display = 'none';
+  document.getElementById('pending-screen').style.display = 'none';
+  document.getElementById('app').classList.add('on');
+  updateHomeUI(); updateEarningsUI(); updateProfileUI();
+}
+
+// ONLINE TOGGLE
+function toggleOnline() {
+  isOnline = !isOnline;
+  document.getElementById('online-toggle').classList.toggle('on', isOnline);
+  document.getElementById('online-label').textContent = isOnline ? 'ONLINE' : 'OFFLINE';
+  if (isOnline) {
+    loadAvailableOrders();
+    toast('You\'re online! Ready to receive orders.');
+  } else {
+    document.getElementById('home-content').innerHTML = '<div class="offline-banner"><b>You\'re Offline</b>Toggle Online above to start receiving delivery requests</div>';
+    toast('You\'re now offline.');
+  }
+}
+
+// LOAD ORDERS
+async function loadAvailableOrders() {
+  if (!isOnline || activeOrder) { if (activeOrder) renderActiveOrderBanner(); return; }
+  const content = document.getElementById('home-content');
+  content.innerHTML = `
+    <div class="sec-hdr"><div class="sec-title">Available Orders</div></div>
+    <div style="display:flex;flex-direction:column;gap:10px;padding:0 16px">
+      ${[1,2].map(() => `
+        <div class="skel-card" style="border-radius:var(--r);border:1px solid var(--border,rgba(255,255,255,0.08))">
+          <div class="skel skel-card-img" style="width:80px;height:80px"></div>
+          <div class="skel-card-body">
+            <div class="skel skel-line-lg"></div>
+            <div class="skel skel-line-md"></div>
+            <div class="skel skel-line-sm"></div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+  try {
+    const r = await fetch(`${API}/orders?status=packed`);
+    const d = await r.json();
+    const available = (d.orders||[]).filter(o => !o.assigned_partner_id && !o.partner_id);
+    renderAvailableOrders(available);
+  } catch(e) {
+    renderAvailableOrders([]);
+  }
+  setTimeout(() => { if (isOnline && !activeOrder) loadAvailableOrders(); }, 15000);
+}
+
+function getDemoOrders() {
+  return [{
+    order_id: 'DRP' + Math.floor(Math.random()*9000+1000),
+    store: 'Zara Studio', store_address: 'Shop 12, Ambience Mall, Gurgaon',
+    customer_name: 'Priya Sharma', customer_address: 'B-204, DLF Phase 2, Gurgaon',
+    amount: 2800, is_try_and_buy: true,
+    items: [{name:'Floral Wrap Dress',size:'M',price:1800,photo:''},{name:'Denim Jacket',size:'S',price:1000,photo:''}]
+  }];
+}
+
+function renderAvailableOrders(orders) {
+  const content = document.getElementById('home-content');
+  if (!orders.length) {
+    content.innerHTML = '<div class="sec-hdr"><div class="sec-title">Available Orders</div></div><div class="empty-state"><div class="empty-ico"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.4 2 2 0 0 1 3.58 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div><div class="empty-title">No orders right now</div><div class="empty-sub">Stay online — orders appear here when stores pack them</div></div>';
+    return;
+  }
+  content.innerHTML = '<div class="sec-hdr"><div class="sec-title">Available Orders</div><div class="sec-sub">' + orders.length + ' near you</div></div>' +
+    orders.map(o => orderCardHTML(o)).join('');
+}
+
+function orderCardHTML(o) {
+  const earn = Math.round(o.amount * 0.08) || BASE_EARNING;
+  const pStr = JSON.stringify(o).replace(/"/g,'&quot;');
+  const pills = (o.items||[]).map(i=>'<span class="oc-item-pill">'+i.name+' ('+i.size+')</span>').join('');
+  const tbPill = o.is_try_and_buy ? '<span class="oc-item-pill" style="background:var(--green-dim);border-color:rgba(30,138,94,0.2);color:var(--green)">Try &amp; Buy</span>' : '';
+  return '<div class="order-card" onclick="openOrderDetail('+pStr+')">' +
+    '<div class="oc-top"><div class="oc-id">#'+o.order_id+'</div><div class="oc-chip chip-new">NEW ORDER</div></div>' +
+    '<div class="oc-body">' +
+    '<div class="oc-store-row"><div class="oc-store-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><div><div class="oc-store-name">'+o.store+'</div><div class="oc-store-addr"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> '+(o.store_address||'Store address')+'</div></div></div>' +
+    '<div class="oc-divider">↓ deliver to</div>' +
+    '<div class="oc-store-row"><div class="oc-store-ico" style="background:var(--red-dim)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div><div class="oc-store-name">'+o.customer_name+'</div><div class="oc-store-addr"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> '+o.customer_address+'</div></div></div>' +
+    '<div class="oc-items">'+pills+tbPill+'</div></div>' +
+    '<div class="oc-footer"><div><div class="oc-amount">₹'+o.amount+'</div><div class="oc-earn">You earn ₹'+earn+'</div></div>' +
+    '<button class="accept-btn" onclick="event.stopPropagation();quickAccept('+pStr+')">ACCEPT</button></div></div>';
+}
+
+// ORDER DETAIL
+function openOrderDetail(order) {
+  currentOrderData = order;
+  const earn = Math.round(order.amount * 0.08) || BASE_EARNING;
+  const isActive = activeOrder && activeOrder.order_id === order.order_id;
+  document.getElementById('od-id').textContent = '#' + order.order_id;
+  document.getElementById('od-status').textContent = isActive ? getStatusLabel() : 'NEW ORDER';
+  document.getElementById('od-amount').textContent = '₹' + order.amount;
+  document.getElementById('od-earn').textContent = '₹' + earn;
+  document.getElementById('od-store-name').textContent = order.store;
+  document.getElementById('od-store-addr').textContent = order.store_address || 'Store address';
+  document.getElementById('od-customer-name').textContent = order.customer_name;
+  document.getElementById('od-customer-addr').textContent = order.customer_address;
+  const items = order.items || [{name:order.product||'Item',size:order.size||'M',price:order.amount,photo:''}];
+  document.getElementById('od-items-list').innerHTML = items.map(i =>
+    '<div class="order-item-row"><div class="oir-img">'+(i.photo?'<img src="'+i.photo+'" alt="">':"<svg width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.08)' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.57a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.57a2 2 0 0 0-1.34-2.23z'/></svg>")+'</div>' +
+    '<div style="flex:1"><div class="oir-name">'+i.name+'</div><div class="oir-meta">Size: '+i.size+'</div></div>' +
+    '<div class="oir-price">₹'+i.price+'</div></div>').join('');
+  updateOrderActionBtn();
+  openPanel('order-panel');
+}
+
+function getStatusLabel() {
+  const map = {accepted:'HEADING TO STORE',at_store:'AT STORE',picked_up:'DELIVERING',at_customer:'AT CUSTOMER DOOR'};
+  return map[currentOrderState] || 'IN PROGRESS';
+}
+
+function updateOrderActionBtn() {
+  const btn = document.getElementById('order-main-btn');
+  const sec = document.getElementById('order-sec-btn');
+  const isActive = activeOrder && currentOrderData && activeOrder.order_id === currentOrderData.order_id;
+  if (!isActive) {
+    btn.textContent = 'ACCEPT ORDER'; btn.onclick = handleOrderAction;
+    sec.style.display = 'block';
+  } else {
+    const map = {accepted:"I'VE REACHED THE STORE",at_store:'ORDER PICKED UP',picked_up:"I'VE REACHED THE CUSTOMER",at_customer:'DELIVERED — COMPLETE ORDER'};
+    btn.textContent = map[currentOrderState] || 'NEXT STEP';
+    btn.onclick = handleOrderAction;
+    sec.style.display = 'none';
+  }
+}
+
+function handleOrderAction() {
+  const isActive = activeOrder && currentOrderData && activeOrder.order_id === currentOrderData.order_id;
+  if (!isActive) acceptOrder(currentOrderData);
+  else advanceOrderState();
+}
+
+function quickAccept(order) { acceptOrder(order); toast('Order accepted! Navigate to ' + order.store); }
+
+function acceptOrder(order) {
+  activeOrder = order; currentOrderState = 'accepted';
+  updateOrderActionBtn();
+  document.getElementById('od-status').textContent = 'HEADING TO STORE';
+  renderActiveOrderBanner();
+  closePanel('order-panel');
+  toast('Order accepted! Head to ' + order.store);
+  fetch(`${API}/orders/${order.order_id}/partner`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({partner_id:partner?.id,partner_name:partner?.name})}).catch(()=>{});
+}
+
+function advanceOrderState() {
+  const flow = ['accepted','at_store','picked_up','at_customer'];
+  const idx = flow.indexOf(currentOrderState);
+  if (idx < flow.length - 1) currentOrderState = flow[idx+1];
+  const msgs = {at_store:'At store! Collect the packed order.',picked_up:'Order picked up! Head to customer.',at_customer:'Arrived! Click to start Try & Buy timer.'};
+  toast(msgs[currentOrderState] || '');
+  if (currentOrderState === 'at_customer') {
+    document.getElementById('order-main-btn').textContent = 'DELIVERED — COMPLETE ORDER';
+    document.getElementById('order-main-btn').onclick = completeDelivery;
+  } else updateOrderActionBtn();
+  renderActiveOrderBanner();
+}
+
+function renderActiveOrderBanner() {
+  if (!activeOrder) return;
+  const labels = {accepted:'Heading to store',at_store:'At store — collect order',picked_up:'Delivering to customer',at_customer:'At customer door — mark as delivered'};
+  const pStr = JSON.stringify(activeOrder).replace(/"/g,'&quot;');
+  document.getElementById('active-order-wrap').innerHTML =
+    '<div class="active-order-banner" onclick="openOrderDetail('+pStr+')">' +
+    '<div class="aob-pulse"></div>' +
+    '<div><div class="aob-text">#'+activeOrder.order_id+' — '+activeOrder.store+'</div>' +
+    '<div class="aob-sub">'+(labels[currentOrderState]||'In progress')+'</div></div>' +
+    '<div style="font-size:18px;color:#fff">›</div></div>';
+  document.getElementById('home-content').innerHTML = '';
+}
+
+// TRY & BUY
+
+function completeDelivery() {
+  if (!activeOrder) return;
+  fetch(`${API}/orders/${activeOrder.order_id}/complete`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({partner_id: partner?.id})
+  }).catch(()=>{});
+
+  const partnerEarns = BASE_EARNING;
+  todayEarnings += partnerEarns;
+  todayDeliveries++;
+  localStorage.setItem('dd_today_earn', todayEarnings);
+  localStorage.setItem('dd_today_del', todayDeliveries);
+  deliveryHistory.unshift({
+    order_id: activeOrder.order_id,
+    store: activeOrder.store,
+    customer: activeOrder.customer_name,
+    earn: partnerEarns,
+    date: new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short'})
+  });
+  localStorage.setItem('dd_history', JSON.stringify(deliveryHistory));
+  closePanel('order-panel');
+  showCompletion(partnerEarns, 1, 0, 0);
+  activeOrder = null;
+  currentOrderState = 'new';
+  document.getElementById('active-order-wrap').innerHTML = '';
+  updateHomeUI();
+  updateEarningsUI();
+}
+
+function showCompletion(earn, kept, returned, refund) {
+  document.getElementById('complete-earn').textContent = '₹' + earn;
+  const storeName = activeOrder?.store || 'the store';
+  const storeAddr = activeOrder?.store_address || '';
+  document.getElementById('complete-details').innerHTML =
+    '<div class="cd-row"><span>Items Kept</span><b>'+kept+'</b></div>' +
+    '<div class="cd-row"><span>Items Returned</span><b>'+returned+'</b></div>' +
+    (refund>0?'<div class="cd-row"><span>Refund Processed</span><b style="color:var(--red)">₹'+refund+'</b></div>':'')+
+    '<div class="cd-row"><span>Your Earnings</span><b style="color:var(--green)">₹'+earn+'</b></div>' +
+    '<div class="cd-row"><span>Deliveries Today</span><b>'+todayDeliveries+'</b></div>' +
+    (returned>0?
+      '<div style="margin-top:12px;background:rgba(212,43,43,0.08);border:1px solid rgba(212,43,43,0.2);border-radius:8px;padding:12px;text-align:left">' +
+      '<div style="font-size:12px;font-weight:800;color:#d42b2b;margin-bottom:4px">RETURN ITEMS TO STORE</div>' +
+      '<div style="font-size:12px;color:#555;line-height:1.5">You have <b>'+returned+' item(s)</b> to return to <b>'+storeName+'</b>. Please drop them back at the store before your next delivery.</div>' +
+      (storeAddr?'<div style="font-size:11px;color:#999;margin-top:4px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> '+storeAddr+'</div>':'')+
+      '<button onclick="window.open(\'https://www.google.com/maps/search/?api=1&query=\'+encodeURIComponent(activeOrder?.store_address||activeOrder?.store||\'\')+\'\',\'_blank\')" style="margin-top:10px;width:100%;padding:10px;background:#d42b2b;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">NAVIGATE TO STORE</button>' +
+      '</div>'
+    :'');
+}
+
+
+function closeCompletion() {
+  document.getElementById('complete-overlay').classList.remove('on');
+  loadAvailableOrders();
+}
+
+function navigateTo(dest) {
+  if (!currentOrderData) return;
+  const addr = dest === 'store' ? currentOrderData.store_address : currentOrderData.customer_address;
+  window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr||'Gurgaon'), '_blank');
+}
+
+function updateHomeUI() {
+  if (!partner) return;
+  const h = new Date().getHours();
+  document.getElementById('home-greeting').textContent = h<12?'GOOD MORNING':h<17?'GOOD AFTERNOON':'GOOD EVENING';
+  document.getElementById('home-name').textContent = (partner.name||'Partner').toUpperCase();
+  document.getElementById('today-earn').textContent = todayEarnings;
+  document.getElementById('today-orders').textContent = todayDeliveries;
+  document.getElementById('today-rating').textContent = deliveryHistory.length ? '4.8' : '—';
+}
+
+function updateEarningsUI() {
+  if (!partner) return;
+  const total = deliveryHistory.reduce((s,d)=>s+d.earn,0);
+  const week = deliveryHistory.slice(0,7).reduce((s,d)=>s+d.earn,0);
+  document.getElementById('total-earned').textContent = total;
+  document.getElementById('stat-deliveries').textContent = deliveryHistory.length;
+  document.getElementById('stat-this-week').textContent = '₹'+week;
+  document.getElementById('stat-rating').textContent = deliveryHistory.length?'4.8':'—';
+  document.getElementById('payout-upi-display').textContent = partner.upi_id||'—';
+  const list = document.getElementById('delivery-history-list');
+  if (!deliveryHistory.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div class="empty-title">No deliveries yet</div><div class="empty-sub">Complete your first delivery to see history here</div></div>';
+    return;
+  }
+  list.innerHTML = deliveryHistory.map(d =>
+    '<div class="dh-item"><div class="dh-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="19" cy="17" r="3"/><circle cx="5" cy="17" r="3"/><path d="M12 17H8L5 9h6l2 4h3l2-4h2l-2 5"/></svg></div>' +
+    '<div class="dh-info"><div class="dh-id">#'+d.order_id+'</div>' +
+    '<div class="dh-meta">'+d.store+' · '+d.date+(d.returned?' · '+d.returned+' returned':'')+'</div></div>' +
+    '<div class="dh-earn">+₹'+d.earn+'</div></div>').join('');
+}
+
+function updateProfileUI() {
+  if (!partner) return;
+  document.getElementById('prof-name').textContent = (partner.name||'PARTNER').toUpperCase();
+  document.getElementById('prof-phone').textContent = partner.phone||'—';
+  document.getElementById('prof-vehicle').textContent = partner.vehicle_type||'BIKE';
+  document.getElementById('profile-upi-display').textContent = partner.upi_id||'—';
+}
+
+function requestPayout() {
+  const total = deliveryHistory.reduce((s,d)=>s+d.earn,0);
+  if (total < 100) { toast('Minimum payout is ₹100. Keep delivering!'); return; }
+  toast('Payout of ₹'+total+' requested to '+(partner?.upi_id||'your UPI'));
+}
+
+function editUPI() {
+  const newUPI = prompt('Enter new UPI ID:', partner?.upi_id||'');
+  if (newUPI && partner) {
+    partner.upi_id = newUPI;
+    localStorage.setItem('dd_partner', JSON.stringify(partner));
+    updateProfileUI(); updateEarningsUI();
+    toast('UPI ID updated!');
+  }
+}
+
+function doLogout() {
+  if (!confirm('Are you sure you want to logout?')) return;
+  partner = null; isOnline = false; activeOrder = null;
+  localStorage.removeItem('dd_partner');
+  document.getElementById('app').classList.remove('on');
+  document.getElementById('auth-overlay').style.display = 'flex';
+  gotoStep('s-phone'); toast('Logged out');
+}
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));
+  const map = {'pg-home':'ni-home','pg-earnings':'ni-earnings','pg-profile':'ni-profile'};
+  if (map[id]) document.getElementById(map[id]).classList.add('on');
+  if (id==='pg-earnings') updateEarningsUI();
+  if (id==='pg-profile') updateProfileUI();
+}
+function openPanel(id) { document.getElementById(id)?.classList.add('on'); }
+function closePanel(id) { document.getElementById(id)?.classList.remove('on'); }
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.style.display = 'block';
+  clearTimeout(window._tt);
+  window._tt = setTimeout(()=>el.style.display='none',3500);
+}
+
+function partnerDocUploaded(input, statusId, checkId) {
+  if (input.files && input.files[0]) {
+    const file = input.files[0];
+    const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+    document.getElementById(statusId).textContent = file.name + ' (' + sizeMB + 'MB)';
+    document.getElementById(checkId).classList.add('done');
+  }
+}
+
+</script>
+</body>
+</html>
