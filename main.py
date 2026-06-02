@@ -63,6 +63,7 @@ class StoreRegister(BaseModel):
 
 class StoreLogin(BaseModel):
     phone: str
+    otp: Optional[str] = None
 
 class AddProduct(BaseModel):
     store_id: str
@@ -345,7 +346,7 @@ def login_store(body: StoreLogin):
         if not store:
             return {"error": "Phone number not registered. Please register first!", "not_registered": True}
         if store["status"] == "pending":
-            return {"error": "Your store is pending approval. We'll notify you within 24 hours!", "pending": True}
+            return {"pending": True, "message": "Your store is pending approval. We'll notify you within 24 hours!"}
         if store["status"] == "rejected":
             return {"error": "Your application was not approved. Contact getdripd1@gmail.com", "rejected": True}
         return {"success": True, "store": dict(store)}
