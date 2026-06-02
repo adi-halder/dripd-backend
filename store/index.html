@@ -359,12 +359,24 @@ select.inp{cursor:pointer;appearance:none;background-image:url("data:image/svg+x
 .doc-check.on{display:flex}
 .doc-check svg{width:11px;height:11px;stroke:#fff;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
 .doc-optional{background:var(--gold-dim);border:1px solid rgba(184,135,42,.2);color:var(--gold);font-family:'Space Mono',monospace;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;margin-left:6px;letter-spacing:.5px;flex-shrink:0}
-.loc-map-preview{width:100%;height:140px;border-radius:var(--r-sm);background:var(--bg2);border:1px solid var(--border);margin-bottom:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.loc-map-preview{width:100%;height:180px;border-radius:var(--r-sm);background:var(--bg2);border:1px solid var(--border);margin-bottom:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
 .loc-map-preview svg{width:40px;height:40px;stroke:var(--border2);fill:none;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
 .loc-pin{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:24px;height:24px;background:var(--red);border-radius:50% 50% 50% 0;transform:translate(-50%,-100%) rotate(-45deg);border:3px solid #fff;box-shadow:0 2px 8px rgba(212,43,43,.4);display:none}
 .loc-map-preview.has-loc .loc-pin{display:block}
 .loc-map-preview.has-loc svg{display:none}
-.loc-coords-txt{font-family:'Space Mono',monospace;font-size:10px;color:var(--text3);text-align:center;margin-bottom:12px;display:none}
+.loc-map-canvas{position:absolute;inset:0;width:100%;height:100%}
+.loc-map-empty{font-size:12px;color:var(--text3);text-align:center;padding:18px;line-height:1.5}
+.loc-results{margin-top:-8px;margin-bottom:12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--white);overflow:hidden;display:none}
+.loc-results:not(:empty){display:block}
+.loc-result-item{padding:11px 12px;border-bottom:1px solid var(--border);cursor:pointer;background:var(--white)}
+.loc-result-item:last-child{border-bottom:none}
+.loc-result-item:hover{background:var(--bg)}
+.loc-result-title{font-size:13px;font-weight:700;color:var(--text)}
+.loc-result-sub{font-size:11px;color:var(--text3);line-height:1.35;margin-top:2px}
+.loc-coords-txt{font-size:13px;color:var(--text2);text-align:center;margin-bottom:12px;display:none;line-height:1.45}
+.hidden-location-inputs{display:none}
+.hidden-location-inputs + div{display:none !important}
+.pac-container{z-index:10000 !important}
 .nav-btns{display:flex;gap:10px;margin-top:8px}
 .btn-back{flex:1;padding:14px;background:transparent;color:var(--text2);border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;transition:all .2s}
 .btn-back:hover{border-color:var(--red);color:var(--red)}
@@ -558,24 +570,23 @@ select.inp{cursor:pointer;appearance:none;background-image:url("data:image/svg+x
         <div class="step-sub">Pin your exact store location so customers can find you. Required for delivery to work.</div>
 
         <div class="loc-map-preview" id="reg-map-preview">
-          <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          <div class="loc-pin" id="reg-loc-pin"></div>
+          <div class="loc-map-empty" id="reg-map-empty">Search your store address or use detect location to load Google Maps.</div>
+          <div class="loc-map-canvas" id="reg-map-canvas"></div>
         </div>
-        <div class="loc-coords-txt" id="reg-loc-txt">Detecting location...</div>
+        <div class="loc-coords-txt" id="reg-loc-txt">No location selected</div>
         <button class="loc-detect-btn" onclick="detectRegLocation()">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
           Detect My Location
         </button>
         <div style="margin-top:12px">
-          <label class="lbl">Search location</label>
-          <input class="inp" id="r-loc-search" placeholder="Search store address or area" oninput="clearTimeout(window._regLocSearch);window._regLocSearch=setTimeout(()=>searchStoreLocation('reg'),400)">
-          <div id="r-loc-results" style="margin-top:-8px;margin-bottom:12px"></div>
-          <label class="lbl">Or enter manually</label>
-          <div style="display:flex;gap:8px">
-            <input class="inp" id="r-lat" placeholder="Latitude" type="number" step="0.0001" style="flex:1;margin-bottom:0">
-            <input class="inp" id="r-lng" placeholder="Longitude" type="number" step="0.0001" style="flex:1;margin-bottom:0">
+          <label class="lbl">Search on Google Maps</label>
+          <input class="inp" id="r-loc-search" placeholder="Search store name, address or landmark" onfocus="initLocationAutocomplete()" oninput="clearTimeout(window._regLocSearch);window._regLocSearch=setTimeout(()=>searchStoreLocation('reg'),450)">
+          <div id="r-loc-results" class="loc-results"></div>
+          <label class="lbl" style="display:none">Saved coordinates</label>
+          <div class="hidden-location-inputs">
+            <input id="r-lat" type="hidden">
+            <input id="r-lng" type="hidden">
           </div>
-          <div style="font-family:Space Mono,monospace;font-size:10px;color:var(--text3);margin-top:6px;margin-bottom:14px">Find on Google Maps → long press on your store → copy coordinates</div>
         </div>
         <div class="st-msg" id="st-s2"></div>
         <div class="nav-btns">
@@ -961,6 +972,10 @@ select.inp{cursor:pointer;appearance:none;background-image:url("data:image/svg+x
       <div class="sec-hdr"><div class="sec-title">Store Location</div></div>
       <div class="card">
         <div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.5">Set your location so customers nearby can find your store on the app.</div>
+        <div class="loc-map-preview" id="profile-map-preview">
+          <div class="loc-map-empty" id="profile-map-empty">Search your store address or use detect location to load Google Maps.</div>
+          <div class="loc-map-canvas" id="profile-map-canvas"></div>
+        </div>
         <button class="loc-detect-btn" onclick="detectLocation()">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
           Detect My Location
@@ -968,13 +983,13 @@ select.inp{cursor:pointer;appearance:none;background-image:url("data:image/svg+x
         <div class="loc-status" id="loc-status">Location saved!</div>
         <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--text3);text-align:center;display:none" id="loc-coords"></div>
         <div style="margin-top:8px">
-          <label class="lbl">Search location</label>
-          <input class="inp" id="loc-search" placeholder="Search store address or area" oninput="clearTimeout(window._storeLocSearch);window._storeLocSearch=setTimeout(()=>searchStoreLocation('profile'),400)">
-          <div id="loc-search-results" style="margin-top:-8px;margin-bottom:12px"></div>
-          <label class="lbl">Or enter manually</label>
-          <div style="display:flex;gap:8px;margin-bottom:0">
-            <input class="inp" id="lat-inp" placeholder="Latitude" style="margin-bottom:0;flex:1" type="number" step="0.0001">
-            <input class="inp" id="lng-inp" placeholder="Longitude" style="margin-bottom:0;flex:1" type="number" step="0.0001">
+          <label class="lbl">Search on Google Maps</label>
+          <input class="inp" id="loc-search" placeholder="Search store name, address or landmark" onfocus="initLocationAutocomplete()" oninput="clearTimeout(window._storeLocSearch);window._storeLocSearch=setTimeout(()=>searchStoreLocation('profile'),450)">
+          <div id="loc-search-results" class="loc-results"></div>
+          <label class="lbl" style="display:none">Saved coordinates</label>
+          <div class="hidden-location-inputs">
+            <input id="lat-inp" type="hidden">
+            <input id="lng-inp" type="hidden">
           </div>
         </div>
         <button class="save-btn" style="margin-top:12px" onclick="saveLocation()">SAVE LOCATION</button>
@@ -1171,6 +1186,10 @@ let resendTimer = null, selSizes = [], uploadedPhoto = null;
 let allOrders = [], chatOrderId = null, chatInterval = null;
 let selCats = [], regLat = null, regLng = null;
 let currentStep = 1;
+let googleMapsReady = false, googleMapsLoading = false;
+let regMap = null, regMarker = null, profileMap = null, profileMarker = null;
+let regAutocomplete = null, profileAutocomplete = null;
+let selectedRegLocation = null, selectedProfileLocation = null;
 
 // ── INTRO ──
 (function() {
@@ -1265,6 +1284,7 @@ function goStep(n) {
   }
   // Scroll to top
   document.getElementById('s-auth').scrollTop = 0;
+  if (n === 2) setTimeout(initLocationAutocomplete, 100);
 }
 
 function validateStep1() {
@@ -1283,7 +1303,7 @@ function validateStep2() {
   const lat = parseFloat(document.getElementById('r-lat').value);
   const lng = parseFloat(document.getElementById('r-lng').value);
   if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
-    showMsg('st-s2','Location is required. Tap "Detect My Location" or enter coordinates manually.','err');
+    showMsg('st-s2','Location is required. Search on Google Maps or tap "Detect My Location".','err');
     return false;
   }
   regLat = lat; regLng = lng;
@@ -1336,55 +1356,146 @@ async function getLocationLabel(lat, lng) {
   try {
     const r = await fetch(`${API}/location/reverse?lat=${lat}&lng=${lng}`);
     const d = await r.json();
-    return d.success ? d.label : `${lat}, ${lng}`;
+    return d.success ? d.label : 'Selected location';
   } catch(e) {
-    return `${lat}, ${lng}`;
+    return 'Selected location';
   }
 }
 
+async function loadGoogleMaps() {
+  if (googleMapsReady) return true;
+  if (googleMapsLoading) {
+    return new Promise(resolve => {
+      const check = setInterval(() => {
+        if (!googleMapsLoading) { clearInterval(check); resolve(googleMapsReady); }
+      }, 100);
+    });
+  }
+  googleMapsLoading = true;
+  try {
+    const key = await fetch(API + '/config/maps-key').then(r => r.json()).then(d => d.key).catch(() => '');
+    if (!key) {
+      googleMapsLoading = false;
+      return false;
+    }
+    await new Promise((resolve, reject) => {
+      window.initDripdGoogleMaps = () => resolve();
+      const s = document.createElement('script');
+      s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&callback=initDripdGoogleMaps`;
+      s.async = true;
+      s.defer = true;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+    googleMapsReady = !!window.google?.maps;
+  } catch(e) {
+    googleMapsReady = false;
+  }
+  googleMapsLoading = false;
+  return googleMapsReady;
+}
+
+function drawLocationMap(mode, lat, lng, label) {
+  if (!googleMapsReady || !window.google?.maps) return;
+  const canvas = document.getElementById(mode === 'reg' ? 'reg-map-canvas' : 'profile-map-canvas');
+  const empty = document.getElementById(mode === 'reg' ? 'reg-map-empty' : 'profile-map-empty');
+  if (!canvas) return;
+  const pos = { lat: parseFloat(lat), lng: parseFloat(lng) };
+  if (empty) empty.style.display = 'none';
+  canvas.style.display = 'block';
+  if (mode === 'reg') {
+    if (!regMap) regMap = new google.maps.Map(canvas, { center: pos, zoom: 17, mapTypeControl: false, streetViewControl: false, fullscreenControl: false });
+    regMap.setCenter(pos); regMap.setZoom(17);
+    if (!regMarker) regMarker = new google.maps.Marker({ map: regMap });
+    regMarker.setPosition(pos); regMarker.setTitle(label || 'Store location');
+  } else {
+    if (!profileMap) profileMap = new google.maps.Map(canvas, { center: pos, zoom: 17, mapTypeControl: false, streetViewControl: false, fullscreenControl: false });
+    profileMap.setCenter(pos); profileMap.setZoom(17);
+    if (!profileMarker) profileMarker = new google.maps.Marker({ map: profileMap });
+    profileMarker.setPosition(pos); profileMarker.setTitle(label || 'Store location');
+  }
+}
+
+async function initLocationAutocomplete() {
+  const ready = await loadGoogleMaps();
+  if (!ready || !window.google?.maps?.places) return false;
+  const setup = (mode, inputId) => {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    if (mode === 'reg' && regAutocomplete) return;
+    if (mode === 'profile' && profileAutocomplete) return;
+    const ac = new google.maps.places.Autocomplete(input, {
+      componentRestrictions: { country: 'in' },
+      fields: ['formatted_address', 'geometry', 'name']
+    });
+    ac.addListener('place_changed', () => {
+      const place = ac.getPlace();
+      const loc = place.geometry?.location;
+      if (!loc) { toast('Choose a place from the Google suggestions'); return; }
+      const label = place.formatted_address || place.name || input.value;
+      setStoreLocationFields(mode, loc.lat(), loc.lng(), label);
+    });
+    if (mode === 'reg') regAutocomplete = ac;
+    else profileAutocomplete = ac;
+  };
+  setup('reg', 'r-loc-search');
+  setup('profile', 'loc-search');
+  return true;
+}
+
 function setStoreLocationFields(mode, lat, lng, label) {
+  const cleanLabel = label || 'Selected location';
   if (mode === 'reg') {
     document.getElementById('r-lat').value = lat;
     document.getElementById('r-lng').value = lng;
     regLat = parseFloat(lat); regLng = parseFloat(lng);
+    selectedRegLocation = { lat: regLat, lng: regLng, label: cleanLabel };
     document.getElementById('reg-map-preview').classList.add('has-loc');
     document.getElementById('reg-loc-txt').style.display = 'block';
-    document.getElementById('reg-loc-txt').textContent = label;
-    document.getElementById('r-loc-search').value = label;
+    document.getElementById('reg-loc-txt').textContent = cleanLabel;
+    document.getElementById('r-loc-search').value = cleanLabel;
     document.getElementById('r-loc-results').innerHTML = '';
+    drawLocationMap('reg', lat, lng, cleanLabel);
   } else {
     document.getElementById('lat-inp').value = lat;
     document.getElementById('lng-inp').value = lng;
-    document.getElementById('loc-coords').textContent = label;
+    selectedProfileLocation = { lat: parseFloat(lat), lng: parseFloat(lng), label: cleanLabel };
+    document.getElementById('loc-coords').textContent = cleanLabel;
     document.getElementById('loc-coords').style.display = 'block';
-    document.getElementById('loc-search').value = label;
+    document.getElementById('loc-search').value = cleanLabel;
     document.getElementById('loc-search-results').innerHTML = '';
+    drawLocationMap('profile', lat, lng, cleanLabel);
   }
 }
 
 async function searchStoreLocation(mode) {
+  if (await initLocationAutocomplete()) {
+    const resultId = mode === 'reg' ? 'r-loc-results' : 'loc-search-results';
+    document.getElementById(resultId).innerHTML = '';
+    return;
+  }
   const inputId = mode === 'reg' ? 'r-loc-search' : 'loc-search';
   const resultId = mode === 'reg' ? 'r-loc-results' : 'loc-search-results';
   const q = document.getElementById(inputId).value.trim();
   const box = document.getElementById(resultId);
   if (q.length < 3) { box.innerHTML = ''; return; }
-  box.innerHTML = '<div style="padding:10px;color:var(--text3);font-size:12px">Searching...</div>';
+  box.innerHTML = '<div class="loc-result-item"><div class="loc-result-sub">Searching...</div></div>';
   try {
     const r = await fetch(`${API}/location/search?q=${encodeURIComponent(q)}`);
     const d = await r.json();
     const results = d.results || [];
     if (!d.success || !results.length) {
-      box.innerHTML = '<div style="padding:10px;color:var(--text3);font-size:12px">No location found</div>';
+      box.innerHTML = '<div class="loc-result-item"><div class="loc-result-sub">No location found</div></div>';
       return;
     }
     window[mode === 'reg' ? '_regLocResults' : '_storeLocResults'] = results;
     box.innerHTML = results.map((item, idx) => `
-      <div onclick="chooseStoreLocation('${mode}',${idx})" style="padding:11px 0;border-bottom:1px solid var(--border);cursor:pointer">
-        <div style="font-size:13px;font-weight:700;color:var(--text)">${item.label}</div>
-        <div style="font-size:11px;color:var(--text3);line-height:1.35">${item.address || ''}</div>
+      <div class="loc-result-item" onclick="chooseStoreLocation('${mode}',${idx})">
+        <div class="loc-result-title">${item.label}</div>
+        <div class="loc-result-sub">${item.address || ''}</div>
       </div>`).join('');
   } catch(e) {
-    box.innerHTML = '<div style="padding:10px;color:var(--text3);font-size:12px">Search failed</div>';
+    box.innerHTML = '<div class="loc-result-item"><div class="loc-result-sub">Search failed</div></div>';
   }
 }
 
@@ -1397,6 +1508,7 @@ function chooseStoreLocation(mode, idx) {
 
 function detectRegLocation() {
   if (!navigator.geolocation) { toast('Geolocation not supported on this device'); return; }
+  initLocationAutocomplete();
   const btn = document.querySelector('#step-2 .loc-detect-btn');
   btn.textContent = 'Detecting...';
   navigator.geolocation.getCurrentPosition(async pos => {
@@ -1407,7 +1519,7 @@ function detectRegLocation() {
     btn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> Location Detected';
     toast('Location detected successfully!');
   }, () => {
-    toast('Could not detect location. Please allow location access or enter manually.');
+    toast('Could not detect location. Search your store on Google Maps instead.');
     btn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> Detect My Location';
   });
 }
@@ -1631,6 +1743,14 @@ function enterApp() {
   document.getElementById('prof-id').textContent = store.id || '—';
   if (store.latitude) { document.getElementById('lat-inp').value = store.latitude; }
   if (store.longitude) { document.getElementById('lng-inp').value = store.longitude; }
+  if (store.latitude && store.longitude) {
+    const label = store.area || 'Saved store location';
+    selectedProfileLocation = { lat: parseFloat(store.latitude), lng: parseFloat(store.longitude), label };
+    document.getElementById('loc-search').value = label;
+    document.getElementById('loc-coords').textContent = label;
+    document.getElementById('loc-coords').style.display = 'block';
+    initLocationAutocomplete().then(() => drawLocationMap('profile', store.latitude, store.longitude, label));
+  }
   updateOpenPill(store.is_open !== false);
   loadOrders(); loadProducts(); loadMoney(); loadStories(); loadStorePic();
   setInterval(loadOrders, 15000);
@@ -1645,6 +1765,9 @@ function showPage(name) {
   if (name === 'products') loadProducts();
   if (name === 'money') loadMoney();
   if (name === 'stories') loadStories();
+  if (name === 'profile') initLocationAutocomplete().then(() => {
+    if (store?.latitude && store?.longitude) drawLocationMap('profile', store.latitude, store.longitude, store.area || 'Saved store location');
+  });
 }
 
 // ── STORE STATUS ──
@@ -1966,7 +2089,8 @@ async function requestPayout() {
 // ── STORIES ──
 function detectLocation() {
   if (!navigator.geolocation) { toast('Geolocation not supported'); return; }
-  const btn = document.querySelector('.loc-detect-btn');
+  initLocationAutocomplete();
+  const btn = document.querySelector('#pg-profile .loc-detect-btn') || document.querySelector('.loc-detect-btn');
   btn.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> Detecting...';
   navigator.geolocation.getCurrentPosition(async pos => {
     const lat = pos.coords.latitude.toFixed(6);
