@@ -592,7 +592,7 @@ select.inp{cursor:pointer;appearance:none;background-image:url("data:image/svg+x
 
         <label class="lbl">GST Registration Number <span style="color:var(--text3);font-size:11px">(Optional)</span></label>
         <input class="inp" id="r-gst" placeholder="22AAAAA0000A1Z5" maxlength="15" style="text-transform:uppercase">
-        <div style="font-family:Space Mono,monospace;font-size:10px;color:var(--text3);margin-top:-10px;margin-bottom:14px">Required for TDS deductions and invoice generation. Exemption available for turnover below Rs.40L.</div>
+        <div style="font-family:Space Mono,monospace;font-size:10px;color:var(--text3);margin-top:-10px;margin-bottom:14px">Optional. Add it only if your store is GST registered.</div>
 
         <label class="lbl">Upload Documents</label>
         <div class="doc-upload-row" onclick="document.getElementById('doc-pan').click()">
@@ -629,7 +629,7 @@ select.inp{cursor:pointer;appearance:none;background-image:url("data:image/svg+x
           <input type="file" id="doc-trade" accept="image/*,application/pdf" onchange="docUploaded(this,'status-trade','check-trade')">
           <div class="doc-ico"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
           <div class="doc-info">
-            <div class="doc-name">Shop / Trade License <div class="doc-optional">OPTIONAL</div></div>
+            <div class="doc-name">Shop License <div class="doc-optional">OPTIONAL</div></div>
             <div class="doc-status" id="status-trade">Tap to upload</div>
           </div>
           <div class="doc-check" id="check-trade"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
@@ -1295,9 +1295,8 @@ function validateStep3() {
   const pan = document.getElementById('r-pan').value.trim().toUpperCase();
   if (!pan || pan.length !== 10) { showMsg('st-s3','Enter valid 10-character PAN number','err'); return false; }
   const gst = document.getElementById('r-gst').value.trim().toUpperCase();
-  if (!gst || gst.length !== 15) { showMsg('st-s3','Enter valid 15-character GST number','err'); return false; }
+  if (gst && gst.length !== 15) { showMsg('st-s3','Enter valid 15-character GST number or leave it blank','err'); return false; }
   if (!document.getElementById('doc-pan').files.length) { showMsg('st-s3','Upload your PAN card','err'); return false; }
-  if (!document.getElementById('doc-gst').files.length) { showMsg('st-s3','Upload your GST certificate','err'); return false; }
   if (!document.getElementById('doc-aadhaar').files.length) { showMsg('st-s3','Upload your Aadhaar card','err'); return false; }
   return true;
 }
