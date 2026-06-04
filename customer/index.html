@@ -187,6 +187,9 @@ body{color:var(--text);font-family:'DM Sans',sans-serif;margin:0 auto;position:r
 .panel-title{font-size:17px;font-weight:800;color:#fff;flex:1}
 .panel-body{flex:1;overflow-y:auto}
 .panel-body::-webkit-scrollbar{display:none}
+.loc-map-preview{width:100%;height:180px;border-radius:var(--r-sm);background:var(--card2);border:1px solid var(--border);margin-top:12px;overflow:hidden;position:relative;display:flex;align-items:center;justify-content:center}
+.loc-map-canvas{position:absolute;inset:0;width:100%;height:100%}
+.loc-map-empty{font-size:12px;color:var(--text3);text-align:center;padding:18px;line-height:1.5}
 
 /* store hero */
 .store-hero{position:relative;height:200px;background:var(--card2);overflow:hidden;flex-shrink:0}
@@ -767,6 +770,8 @@ let user = null, bag = [], payMethod = 'cashfree';
 let curStore = null, curProduct = null, curOrderId = null;
 let allStores = [], curCat = 'all', trackInterval = null;
 let firebaseReady = false, firebaseConfirmation = null, firebaseOtpPhone = null;
+let customerMapsReady = false, customerMapsLoading = false, customerMapsAuthFailed = false;
+let customerMap = null, customerMarker = null;
 
 try { user = JSON.parse(localStorage.getItem('dd_user') || 'null'); } catch(e) {}
 try { bag = JSON.parse(localStorage.getItem('dd_bag') || '[]'); } catch(e) {}
@@ -929,7 +934,7 @@ async function loadStores() {
   const lat = localStorage.getItem('dd_lat');
   const lng = localStorage.getItem('dd_lng');
   let url = `${API}/stores`;
-  if (lat && lng) url += `?lat=${lat}&lng=${lng}&radius_km=7`;
+  if (lat && lng) url += `?lat=${lat}&lng=${lng}&radius_km=25`;
   try {
     const r = await fetch(url);
     const d = await r.json();
@@ -958,7 +963,7 @@ function renderStores() {
         <div class="store-area-v">${s.area||'—'}</div>
         <div class="store-meta-v">
           ${s.rating>0?`<span style="font-size:11px;color:#fff;font-weight:700">⭐ ${s.rating}</span>`:''}
-          <span class="store-time-h">${s.delivery_time||'~30 min'}</span>
+          <span class="store-time-h">${s.distance_text ? s.distance_text + ' away' : (s.delivery_time||'~30 min')}</span>
           <span class="store-open-h ${s.is_open?'open-yes':'open-no'}">${s.is_open?'● Open':'● Closed'}</span>
         </div>
         <div class="store-cats-v" style="margin-top:6px">${(s.categories||[]).slice(0,3).map(c=>`<span class="store-cat-v">${c}</span>`).join('')}</div>
@@ -1432,6 +1437,75 @@ function openAddressPanel() {
   const loc = localStorage.getItem('dd_loc_label') || '';
   document.getElementById('detected-area').textContent = loc || 'Tap "Change" to detect location';
   openPanel('address-panel');
+  const lat = localStorage.getItem('dd_lat');
+  const lng = localStorage.getItem('dd_lng');
+  if (lat && lng) loadCustomerGoogleMaps().then(() => drawCustomerMap(lat, lng, loc || 'Delivery location'));
+}
+
+async function loadCustomerGoogleMaps() {
+  if (customerMapsAuthFailed) return false;
+  if (customerMapsReady) return true;
+  if (customerMapsLoading) {
+    return new Promise(resolve => {
+      const check = setInterval(() => {
+        if (!customerMapsLoading) { clearInterval(check); resolve(customerMapsReady); }
+      }, 100);
+    });
+  }
+  customerMapsLoading = true;
+  try {
+    const key = await fetch(API + '/config/maps-key').then(r => r.json()).then(d => d.key).catch(() => '');
+    if (!key) {
+      customerMapsLoading = false;
+      showCustomerMapUnavailable('Google Maps key is not configured.');
+      return false;
+    }
+    await new Promise((resolve, reject) => {
+      window.initDripdCustomerMaps = () => resolve();
+      window.gm_authFailure = () => {
+        customerMapsAuthFailed = true;
+        customerMapsReady = false;
+        customerMapsLoading = false;
+        showCustomerMapUnavailable('Google Maps rejected this API key for this website.');
+        reject(new Error('Google Maps authentication failed'));
+      };
+      const s = document.createElement('script');
+      s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&callback=initDripdCustomerMaps`;
+      s.async = true;
+      s.defer = true;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+    customerMapsReady = !!window.google?.maps;
+  } catch(e) {
+    customerMapsReady = false;
+    if (!customerMapsAuthFailed) showCustomerMapUnavailable('Google Maps could not load.');
+  }
+  customerMapsLoading = false;
+  return customerMapsReady;
+}
+
+function showCustomerMapUnavailable(message) {
+  const empty = document.getElementById('cust-map-empty');
+  const canvas = document.getElementById('cust-map-canvas');
+  if (canvas) canvas.style.display = 'none';
+  if (empty) { empty.style.display = 'block'; empty.textContent = message; }
+}
+
+function drawCustomerMap(lat, lng, label) {
+  if (!customerMapsReady || customerMapsAuthFailed || !window.google?.maps) return;
+  const canvas = document.getElementById('cust-map-canvas');
+  const empty = document.getElementById('cust-map-empty');
+  if (!canvas) return;
+  const pos = { lat: parseFloat(lat), lng: parseFloat(lng) };
+  if (empty) empty.style.display = 'none';
+  canvas.style.display = 'block';
+  if (!customerMap) customerMap = new google.maps.Map(canvas, { center: pos, zoom: 17, mapTypeControl: false, streetViewControl: false, fullscreenControl: false });
+  customerMap.setCenter(pos);
+  customerMap.setZoom(17);
+  if (!customerMarker) customerMarker = new google.maps.Marker({ map: customerMap });
+  customerMarker.setPosition(pos);
+  customerMarker.setTitle(label || 'Delivery location');
 }
 
 function setDetectedLocation(lat, lng, label) {
@@ -1440,6 +1514,7 @@ function setDetectedLocation(lat, lng, label) {
   localStorage.setItem('dd_loc_label', label);
   document.getElementById('detected-area').textContent = label;
   document.getElementById('loc-label').textContent = label;
+  loadCustomerGoogleMaps().then(() => drawCustomerMap(lat, lng, label));
 }
 
 function redetectLocation() {
@@ -1452,7 +1527,7 @@ function redetectLocation() {
     try {
       const r = await fetch(`${API}/location/reverse?lat=${lat}&lng=${lng}`);
       const d = await r.json();
-      const label = d.success ? d.label : 'Location detected';
+      const label = d.success ? (d.address || d.label) : 'Location detected';
       setDetectedLocation(lat, lng, label);
     } catch(e) {
       setDetectedLocation(lat, lng, 'Location detected');
@@ -1644,6 +1719,10 @@ function removeFromBag(idx) {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
         <div id="detected-area" style="font-size:14px;font-weight:600;color:#fff;flex:1">Detecting your location...</div>
         <div onclick="redetectLocation()" style="font-size:12px;color:var(--red);font-weight:700;cursor:pointer">Change</div>
+      </div>
+      <div class="loc-map-preview" id="cust-map-preview">
+        <div class="loc-map-empty" id="cust-map-empty">Detect your location to preview it on the map.</div>
+        <div class="loc-map-canvas" id="cust-map-canvas"></div>
       </div>
     </div>
 

@@ -10,6 +10,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import uuid
 import json
+import math
 
 app = FastAPI(title="Drip'd API", version="1.0")
 
@@ -263,7 +264,21 @@ async def reverse_geocode_label(lat: float, lng: float) -> dict:
             )
         data = r.json()
         if data.get("status") == "OK" and data.get("results"):
-            result = data["results"][0]
+            priority = {
+                "street_address": 0,
+                "premise": 1,
+                "subpremise": 2,
+                "establishment": 3,
+                "point_of_interest": 4,
+                "route": 5,
+                "neighborhood": 6,
+                "sublocality": 7,
+                "locality": 8,
+            }
+            def score_result(item):
+                types = item.get("types", [])
+                return min([priority.get(t, 99) for t in types] or [99])
+            result = sorted(data["results"], key=score_result)[0]
             comps = result.get("address_components", [])
             def pick(*types):
                 for comp in comps:
@@ -295,6 +310,90 @@ async def reverse_geocode_label(lat: float, lng: float) -> dict:
         "address": display or full_location_address(address),
         "raw": data
     }
+
+def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    radius = 6371
+    dlat = math.radians(lat2 - lat1)
+    dlng = math.radians(lng2 - lng1)
+    a = (
+        math.sin(dlat / 2) ** 2 +
+        math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
+        math.sin(dlng / 2) ** 2
+    )
+    return radius * 2 * math.asin(math.sqrt(a))
+
+async def get_road_distances(lat: float, lng: float, stores: list) -> dict:
+    if not GOOGLE_MAPS_KEY:
+        return {}
+    distances = {}
+    async with httpx.AsyncClient() as client:
+        for start in range(0, len(stores), 25):
+            batch = stores[start:start + 25]
+            destinations = []
+            ids = []
+            for store in batch:
+                if store.get("latitude") is None or store.get("longitude") is None:
+                    continue
+                destinations.append(f"{float(store['latitude'])},{float(store['longitude'])}")
+                ids.append(store["id"])
+            if not destinations:
+                continue
+            r = await client.get(
+                "https://maps.googleapis.com/maps/api/distancematrix/json",
+                params={
+                    "origins": f"{lat},{lng}",
+                    "destinations": "|".join(destinations),
+                    "mode": "driving",
+                    "units": "metric",
+                    "key": GOOGLE_MAPS_KEY
+                },
+                timeout=12
+            )
+            data = r.json()
+            elements = (data.get("rows") or [{}])[0].get("elements") or []
+            for store_id, element in zip(ids, elements):
+                if element.get("status") != "OK":
+                    continue
+                distances[store_id] = {
+                    "distance_km": element["distance"]["value"] / 1000,
+                    "distance_text": element["distance"].get("text", ""),
+                    "duration_text": element["duration"].get("text", ""),
+                    "duration_seconds": element["duration"].get("value", 0)
+                }
+    return distances
+
+async def enrich_stores_with_distance(stores: list, lat: float = None, lng: float = None, radius_km: float = 25.0) -> list:
+    result = []
+    road_distances = {}
+    if lat is not None and lng is not None:
+        road_distances = await get_road_distances(lat, lng, stores)
+    for s in stores:
+        store = dict(s)
+        if lat is not None and lng is not None and store.get("latitude") is not None and store.get("longitude") is not None:
+            road = road_distances.get(store.get("id"))
+            if road:
+                dist = road["distance_km"]
+                if radius_km and dist > radius_km:
+                    continue
+                store["distance_km"] = round(dist, 1)
+                store["distance_text"] = road["distance_text"] or f"{store['distance_km']} km"
+                store["delivery_time"] = road["duration_text"] or store.get("delivery_time") or "~30 min"
+                store["distance_source"] = "road"
+            else:
+                dist = haversine_km(lat, lng, float(store["latitude"]), float(store["longitude"]))
+                if radius_km and dist > radius_km:
+                    continue
+                store["distance_km"] = round(dist, 1)
+                mins = int((dist / 20) * 60) + 10
+                store["distance_text"] = f"{store['distance_km']} km"
+                store["delivery_time"] = f"~{mins} min"
+                store["distance_source"] = "straight_line"
+        else:
+            store["delivery_time"] = store.get("delivery_time") or "~30 min"
+        result.append(store)
+    if lat is not None and lng is not None:
+        result.sort(key=lambda store: store.get("distance_km", 99999))
+    return result
 
 def create_invoice(cur, order, order_id: str, store_name: str, product_name: str, product_price: int):
     invoice_number = f"INV-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
@@ -442,63 +541,27 @@ def login_store(body: StoreLogin):
         return {"error": str(e)}
 
 @app.get("/stores")
-def get_stores(lat: float = None, lng: float = None, radius_km: float = 7.0):
+async def get_stores(lat: float = None, lng: float = None, radius_km: float = 25.0):
     try:
-        import math
         conn = get_db()
         cur = conn.cursor()
         cur.execute("SELECT * FROM stores WHERE status = 'active' ORDER BY rating DESC")
         stores = cur.fetchall()
         conn.close()
-        result = []
-        for s in stores:
-            store = dict(s)
-            if lat is not None and lng is not None and store.get("latitude") and store.get("longitude"):
-                slat, slng = float(store["latitude"]), float(store["longitude"])
-                R = 6371
-                dlat = math.radians(slat - lat)
-                dlng = math.radians(slng - lng)
-                a = math.sin(dlat/2)**2 + math.cos(math.radians(lat)) * math.cos(math.radians(slat)) * math.sin(dlng/2)**2
-                dist = R * 2 * math.asin(math.sqrt(a))
-                if dist > radius_km:
-                    continue
-                store["distance_km"] = round(dist, 1)
-                mins = int((dist / 20) * 60) + 10
-                store["delivery_time"] = f"~{mins} min"
-            else:
-                store["delivery_time"] = store.get("delivery_time") or "~30 min"
-            result.append(store)
+        result = await enrich_stores_with_distance(stores, lat, lng, radius_km)
         return {"stores": result}
     except Exception as e:
         return {"error": str(e)}
 
 @app.get("/stores/category/{category}")
-def get_stores_by_category(category: str, lat: float = None, lng: float = None, radius_km: float = 7.0):
+async def get_stores_by_category(category: str, lat: float = None, lng: float = None, radius_km: float = 25.0):
     try:
-        import math
         conn = get_db()
         cur = conn.cursor()
         cur.execute("SELECT * FROM stores WHERE %s = ANY(categories) AND status = 'active'", (category,))
         stores = cur.fetchall()
         conn.close()
-        result = []
-        for s in stores:
-            store = dict(s)
-            if lat is not None and lng is not None and store.get("latitude") and store.get("longitude"):
-                slat, slng = float(store["latitude"]), float(store["longitude"])
-                R = 6371
-                dlat = math.radians(slat - lat)
-                dlng = math.radians(slng - lng)
-                a = math.sin(dlat/2)**2 + math.cos(math.radians(lat)) * math.cos(math.radians(slat)) * math.sin(dlng/2)**2
-                dist = R * 2 * math.asin(math.sqrt(a))
-                if dist > radius_km:
-                    continue
-                store["distance_km"] = round(dist, 1)
-                mins = int((dist / 20) * 60) + 10
-                store["delivery_time"] = f"~{mins} min"
-            else:
-                store["delivery_time"] = store.get("delivery_time") or "~30 min"
-            result.append(store)
+        result = await enrich_stores_with_distance(stores, lat, lng, radius_km)
         return {"stores": result}
     except Exception as e:
         return {"error": str(e)}
